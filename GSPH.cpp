@@ -3,6 +3,8 @@
 #include "radix_sort.cpp"
 #include "ps_defs.cpp"
 #include "kernel.h"
+#include "param.h"
+#include "heatingcooling.h"
 #include <cmath>
 using namespace std;
 double fRand_Double(double fMin, double fMax) {
@@ -14,6 +16,9 @@ int TYPE_FLUID = 0;
 int TYPE_GHOST = 1;
 F64 CSMOOTH = 2.0;
 struct Particle {
+	F64 mu;
+	F64 temp;
+	F64 NUMDENS;
 	F64vec pos;
 	F64vec vel;
 	F64vec acc;
@@ -36,6 +41,16 @@ struct Particle {
 	double eng_dot;
 	int TYPE;
 	int id;
+	double cooling_timescale;
+	double Gamma;
+	double Lambda;
+
+	const char* scalars[PARAM::COMP + 11] = { "mass", "pres", "dens", "vx", "vy", "vz", "T", "eng", "ab_e", "ab_HI", "ab_HeI", "ab_OI", "ab_CI", "ab_H2", "ab_CO", "ab_HII",
+			"ab_CII", "ab_FeII", "ab_SiII", "cooling", "heating", "cooling_timescale" };
+	const char* vectors[3] = { "vel", "acc", "pos" };
+
+	double abundances[PARAM::COMP];
+	double old_abundances[PARAM::COMP];
 	U64 getKey() {
 		return id;
 	}
@@ -69,6 +84,8 @@ typedef struct {
 	F64vec domain_len;
 } Domain;
 typedef RellocatableArray<Particle> Particles;
+void evolve_abundance(Particle &hydro, const double oneDynTimeStep);
+
 void find_nnbs(const Particle &pi, const Particles &ps, RellocatableArray<Particle> &nbrs, long nparts) {
 	RellocatableArray<int> ptcl_id;
 
@@ -109,14 +126,14 @@ void calc_density(Particles &ps, long nparts) {
 				}
 			}
 
-			if (ps[i].dens > 5) {
-				cout << "too small smnth in dens " << " mass " << nbrs[j].mass << " dens " << ps[i].dens << " rijx " << rij.x << " pos " << ps[i].pos.x << " smth " << ps[i].smth
-						<< " id " << ps[i].id << " densj " << nbrs[j].dens << " smthj " << nbrs[j].smth << " idj " << nbrs[j].id << " ker " << ker.W(rij, ps[i].smth) << endl;
-//				ps[i].smth = 1e-4;
-
-//				while (true) {
-//				}
-			}
+//			if (ps[i].dens > 5) {
+//				cout << "too small smnth in dens " << " mass " << nbrs[j].mass << " dens " << ps[i].dens << " rijx " << rij.x << " pos " << ps[i].pos.x << " smth " << ps[i].smth
+//						<< " id " << ps[i].id << " densj " << nbrs[j].dens << " smthj " << nbrs[j].smth << " idj " << nbrs[j].id << " ker " << ker.W(rij, ps[i].smth) << endl;
+////				ps[i].smth = 1e-4;
+//
+////				while (true) {
+////				}
+//			}
 		}
 
 		ps[i].smth = ps[i].mass / ps[i].dens;
@@ -131,7 +148,7 @@ void calc_presure(Particles &ps, long nparts, double &glb_dt) {
 			continue;
 		}
 		ps[i].pres = ps[i].dens * ps[i].eng * (GAMMA - 1.0);
-		ps[i].snds = sqrt(1e-18 + GAMMA * ps[i].pres / ps[i].dens);
+		ps[i].snds = sqrt( GAMMA * ps[i].pres / ps[i].dens);
 		ps[i].dt = 0.2 * ps[i].smth / ps[i].snds;
 		double vel_crit = 0.3 * fabs(ps[i].pos.x) / sqrt(ps[i].vel * ps[i].vel);
 		glb_dt = fmin(glb_dt, ps[i].dt);
@@ -178,6 +195,8 @@ void copyGhosts(const Domain &d, Particles &ps, long nparts) {
 			ghost.smth = ps[i].smth;
 			ghost.vel = -ps[i].vel;
 			ghost.id = ps[i].id + nparts + 1000;
+			ghost.temp=ps[i].temp;
+			ghost.NUMDENS = ps[i].NUMDENS;
 //			cout << ghost.id << endl;
 
 			ghost.TYPE = TYPE_GHOST;
@@ -380,17 +399,16 @@ void calc_force_G(Particles &ps, long nparts, const double &glb_dt) {
 				const F64 sj = nbrs[j].pos * eij;
 				const F64 dsij = si - sj;
 				F64vec vij = 0.0;
-				gradW_hsi = kernel.gradW(dr, sqrt(2)*ps[i].smth);
-				gradW_hsj = kernel.gradW(dr,sqrt(2)*nbrs[j].smth);
+				gradW_hsi = kernel.gradW(dr, sqrt(2) * ps[i].smth);
+				gradW_hsj = kernel.gradW(dr, sqrt(2) * nbrs[j].smth);
 
 				calc_Vij2_and_ss(ps[i], nbrs[j], VIJ_I, VIJ_J, sstar, delta, eij);
 
 				calc_riemann_solver(ps[i], nbrs[j], sstar, delta, eij, glb_dt, PSTAR, VSTAR);
-//				}
 
-				interpo = (PSTAR ) * (gradW_hsi * VIJ_I + gradW_hsj * VIJ_J);
+				interpo = (PSTAR) * (gradW_hsi * VIJ_I + gradW_hsj * VIJ_J);
 				ps[i].acc -= nbrs[j].mass * interpo;
-				vij = VSTAR*eij;
+				vij = VSTAR * eij;
 				ps[i].eng_dot -= nbrs[j].mass * PSTAR * (vij - ps[i].vel_half) * (gradW_hsi * VIJ_I + gradW_hsj * VIJ_J);
 
 				if (ps[i].acc.x != ps[i].acc.x) {
@@ -501,6 +519,10 @@ void FinalKick(Particles &ps, double dt, long nparts) {
 		ps[i].vel = ps[i].vel + dt * ps[i].acc;
 		ps[i].pos += ps[i].vel * dt;
 		ps[i].eng += dt * ps[i].eng_dot;
+		ps[i].temp = 1.4 * PARAM::PROTONMASS_CGS * ps[i].pres * PARAM::SEng_per_Mass / (ps[i].dens * PARAM::KBOLTZ_cgs * (1.1 + PARAM::i_abundance_e - PARAM::i_abundance_H2));
+		ps[i].NUMDENS = ps[i].dens * PARAM::SMassDens / (ps[i].mu * PARAM::PROTONMASS);
+
+//		evolve_abundance(ps[i], dt);
 		if (ps[i].pos.x != ps[i].pos.x) {
 			cout << "nan occured in finalk kick!" << endl;
 		}
@@ -522,6 +544,266 @@ void FinalKick(Particles &ps, double dt, long nparts) {
 
 }
 
+void evolve_abundance(Particle &hydro, const double oneDynTimeStep) {
+
+	double abundance_e = hydro.abundances[0];
+	double abundance_HI = hydro.abundances[1];
+	double abundance_HeI = hydro.abundances[2];
+	double abundance_OI = hydro.abundances[3];
+	double abundance_CI = hydro.abundances[4];
+	double abundance_H2 = hydro.abundances[5];
+	double abundance_CO = hydro.abundances[6];
+	double abundance_HII = hydro.abundances[7];
+	double abundance_CII = hydro.abundances[8];
+	double abundance_FeII = hydro.abundances[9];
+	double abundance_SiII = hydro.abundances[10];
+	double abundance_e_old = abundance_e;
+	double abundance_HI_old = abundance_HI;
+	double abundance_HeI_old = abundance_HeI;
+	double abundance_OI_old = abundance_OI;
+	double abundance_CI_old = abundance_CI;
+	double abundance_H2_old = abundance_H2;
+	double abundance_CO_old = abundance_CO;
+	double abundance_HII_old = abundance_HII;
+	double abundance_CII_old = abundance_CII;
+	double abundance_FeII_old = abundance_FeII;
+	double abundance_SiII_old = abundance_SiII;
+	double mu = hydro.mu;
+	double dens = hydro.dens;
+
+	double NUMDENS_CGS = hydro.NUMDENS;
+	double MASSDENS_CGS = hydro.dens * PARAM::SMassDens;
+
+	double tdust = PARAM::Grain_T;
+	double dust_to_gas_ratio = PARAM::dust_to_gas_ratio;
+
+	double energy_old = hydro.eng * PARAM::SEng_per_Mass;
+
+	double energy_init = hydro.eng * PARAM::SEng_per_Mass;
+
+	double abundance_e_init = abundance_e;
+	double abundance_HI_init = abundance_HI;
+	double abundance_HeI_init = abundance_HeI;
+	double abundance_OI_init = abundance_OI;
+	double abundance_CI_init = abundance_CI;
+	double abundance_H2_init = abundance_H2;
+	double abundance_CO_init = abundance_CO;
+	double abundance_HII_init = abundance_HII;
+	double abundance_CII_init = abundance_CII;
+	double abundance_FeII_init = abundance_FeII;
+	double abundance_SiII_init = abundance_SiII;
+	double GAMMA_GAS = 5. / 3.;
+	double temprature_init = hydro.mu * PARAM::PROTONMASS_CGS * (hydro.pres) * PARAM::SEng_per_Mass / (hydro.dens * PARAM::KBOLTZ_CGS * (1.1 + abundance_e - abundance_H2));
+
+	double ydot_H2 = 0.0;
+	double ydot_Hp = 0.0;
+	double ydot_CO = 0.0;
+
+	double Gamma, Lambda;
+	double ylam = 0.0;
+
+	double energy = 0.0;
+	int main_try_steps = 1e8, sub_try_steps = 1000, chem_try_steps = 100;
+	double t_start = 0.;
+
+	double fac = 0.1;
+	double time_passed = 0.0, tleft = 0.0;
+	double dt = oneDynTimeStep * PARAM::ST;
+	double dt_substep = dt;
+	int num_converged = 0;
+	double abs_tol_H = 1e-7, rel_tol_H = fac, rel_diff_H;
+	double abs_tol_HII = 1e-7, rel_tol_HII = fac, rel_diff_HII;
+	double abs_tol_H2 = 1e-7, rel_tol_H2 = fac, rel_diff_H2;
+	double abs_tol_CII = 1e-7, rel_tol_CII = fac, rel_diff_CII;
+	double abs_tol_CO = 1e-7, rel_tol_CO = fac, rel_diff_CO;
+	double abs_tol_e = 1e-7, rel_tol_e = fac, rel_diff_e;
+	double abs_tol_eng, rel_tol_eng = fac, rel_diff_eng;
+	double loop = 1000;
+	double T = 0.0;
+	for (int step = 0; step < main_try_steps; step++) {
+
+//		std::cout << dt << " " << time_passed << " " << tleft << "out loop" << std::endl;
+		int iter_success = 0;
+		tleft = oneDynTimeStep * PARAM::ST - time_passed;
+		dt = (tleft < dt) ? tleft : dt;
+		for (int sub_step = 0; sub_step < sub_try_steps; sub_step++) {
+			abundance_e = abundance_e_init;
+			abundance_HI = abundance_HI_init;
+			abundance_OI = abundance_OI_init;
+			abundance_CI = abundance_CI_init;
+			abundance_H2 = abundance_H2_init;
+			abundance_CO = abundance_CO_init;
+			abundance_HII = abundance_HII_init;
+			abundance_CII = abundance_CII_init;
+			abundance_FeII = abundance_FeII_init;
+			abundance_SiII = abundance_SiII_init;
+			T = temprature_init;
+			energy = energy_init;
+//
+			double K1 = RATE_CR_HII_HeII(abundance_e);
+			double K2 = RATE_XR_HII_HeII(T, abundance_e, abundance_HI, PARAM::col_dens);
+			double K3 = RATE_H_col_HII(T);
+			double K4 = RATE_HIIe_HPhoton(T);
+			double K5 = RATE_HHGrain_H2(T, tdust);
+			double K6 = RATE_HHm_H2_e(T, abundance_HI, abundance_HII);
+			double K7 = RATE_H2_UV_2H(T, PARAM::col_dens, mu, abundance_H2);
+			double K8 = RATE_HH2_3H(T);
+			double K9 = RATE_H2_CR_2H(abundance_e);
+
+			double C_HII = K1 * abundance_HI * NUMDENS_CGS + K2 * abundance_HI * NUMDENS_CGS + K3 * NUMDENS_CGS * abundance_e * NUMDENS_CGS * abundance_HI;
+			double D_HII = K4 * abundance_e * NUMDENS_CGS;
+			double C_HI = K4 * abundance_e * abundance_HII * NUMDENS_CGS * NUMDENS_CGS + K7 * abundance_H2 * NUMDENS_CGS + K8 * abundance_H2 * abundance_HI * NUMDENS_CGS
+					+ K9 * abundance_H2 * NUMDENS_CGS;
+			double D_HI = K1 + K2 + K3 * abundance_e * NUMDENS_CGS + K5 * abundance_HI * NUMDENS_CGS;
+			double C_H2 = K5 * abundance_HI * abundance_HI * NUMDENS_CGS * NUMDENS_CGS + K6 * abundance_e * abundance_HI * NUMDENS_CGS * abundance_HI * NUMDENS_CGS;
+			double D_H2 = K7 + K8 * NUMDENS_CGS * abundance_HI + K9;
+			double C_CO = _C_CO(NUMDENS_CGS, abundance_OI, abundance_CII, abundance_H2);
+			double D_CO = _D_CO();
+
+			abundance_HII = C_HII / (NUMDENS_CGS) / D_HII + (abundance_HII_init - C_HII / (NUMDENS_CGS) / D_HII) * exp(-D_HII * .5 * dt);
+			abundance_HI = C_HI / (NUMDENS_CGS) / D_HI + (abundance_HI_init - C_HI / (NUMDENS_CGS) / D_HI) * exp(-D_HI * .5 * dt);
+			abundance_H2 = C_H2 / (NUMDENS_CGS) / D_H2 + (abundance_H2_init - C_H2 / (NUMDENS_CGS) / D_H2) * exp(-D_H2 * .5 * dt);
+			abundance_CO = C_CO / (NUMDENS_CGS) / D_CO + (abundance_CO_init - C_CO / (NUMDENS_CGS) / D_CO) * exp(-D_CO * .5 * dt);
+			abundance_HII = abundance_HII / (abundance_HII + abundance_HI + 2. * abundance_H2);
+			abundance_HI = abundance_HI / (abundance_HII + abundance_HI + 2. * abundance_H2);
+			abundance_H2 = abundance_H2 / (abundance_HII + abundance_HI + 2. * abundance_H2);
+			abundance_CII = fmax(abundance_CI - abundance_CO, 0.0);
+			abundance_e = fmin(abundance_HII + abundance_CII + abundance_SiII, 1.0);
+//			std::cout << "temp: " << abundance_HII_init << " xe: " << K1<<" "<<K2<<" "<<K3 << " "<<K4<<" CHII "<<C_HII<<" DHII "<<D_HII<<" dt "<< dt <<std::endl;
+//						std::cout << "xe: " << abundance_e  <<std::endl;
+
+			GAMMA_GAS = PARAM::GAMMA;
+			Gamma = rate_Gamma(T, NUMDENS_CGS, abundance_HI, abundance_e, abundance_H2, abundance_HII, abundance_CII, dust_to_gas_ratio, PARAM::Grain_T, PARAM::col_dens, GAMMA_GAS,
+					mu);
+			Lambda = rate_Lambda(T, NUMDENS_CGS, abundance_HI, abundance_e, abundance_H2, abundance_HII, abundance_CII, abundance_FeII, abundance_SiII, abundance_CI, abundance_OI,
+					abundance_CO, dust_to_gas_ratio, PARAM::Grain_T, PARAM::grain_size);
+			rel_diff_eng = (fabs(Gamma - Lambda) * dt) / (energy * MASSDENS_CGS);
+
+			if (rel_diff_eng + 1.e-6 > rel_tol_eng) {
+				iter_success = -1;
+				break;
+			}
+			energy = (energy_init + (Gamma - Lambda) * dt / (MASSDENS_CGS));
+			double mu = abundance_HI + abundance_HII + 2.0 * abundance_H2 + 4.0 * abundance_HeI;
+			mu /= (abundance_HI + abundance_HII + abundance_H2 + abundance_HeI + abundance_e);
+
+//			 mu * PARAM::PROTONMASS_CGS * (pres) * PARAM::SEng_per_Mass
+//						/ (dens * PARAM::KBOLTZ_CGS * (1.1 + abundance_e - abundance_H2))
+//			 mu * PARAM::PROTONMASS_CGS * (energy * (GAMMA_GAS - 1.0) ) * PARAM::SEng_per_Mass
+//						/ ( PARAM::KBOLTZ_CGS * (1.1 + abundance_e - abundance_H2))
+			T = mu * PARAM::PROTONMASS_CGS * energy * (GAMMA_GAS - 1.0) / (PARAM::KBOLTZ_CGS * (1.1 + abundance_e - abundance_H2));
+
+			num_converged = 2;
+
+			rel_diff_eng = (fabs(Gamma - Lambda) * dt) / (energy * MASSDENS_CGS);
+
+//			std::cout << T << std::endl;
+			if (rel_diff_eng + 1.e-6 < rel_tol_eng) {
+				iter_success = num_converged;
+				break;
+			}
+
+		}
+
+		if (iter_success > 0) {
+			double eng_eq = 0.0;
+//						std::cout << T << "  "<<temprature_init<<std::endl;
+
+			if (fabs(T - temprature_init) + 1e-6 < 1.e-3) {
+
+				hydro.NUMDENS = NUMDENS_CGS;
+				hydro.temp = T;
+				hydro.mu = mu;
+				hydro.Lambda = Lambda * 1e26;
+				hydro.Gamma = Gamma * 1e26;
+				hydro.cooling_timescale = ((energy / fabs(Lambda)) * MASSDENS_CGS) / PARAM::yr;
+				hydro.eng = eng_eq = energy / PARAM::SEng_per_Mass;
+				hydro.abundances[0] = abundance_e;
+				hydro.abundances[1] = abundance_HI;
+				hydro.abundances[2] = abundance_HeI;
+				hydro.abundances[3] = abundance_OI;
+				hydro.abundances[4] = abundance_CI;
+				hydro.abundances[5] = abundance_H2;
+				hydro.abundances[6] = abundance_CO;
+				hydro.abundances[7] = abundance_HII;
+				hydro.abundances[8] = abundance_CII;
+				hydro.abundances[9] = abundance_FeII;
+				hydro.abundances[10] = abundance_SiII;
+//				std::cout << time_passed << " " << oneDynTimeStep * PARAM::ST
+//									<< " " << hydro.cooling_timescale << std::endl;
+				break;
+
+			}
+			abundance_e_init = abundance_e;
+			abundance_HI_init = abundance_HI;
+			abundance_OI_init = abundance_OI;
+			abundance_CI_init = abundance_CI;
+			abundance_H2_init = abundance_H2;
+			abundance_CO_init = abundance_CO;
+			abundance_HII_init = abundance_HII;
+			abundance_CII_init = abundance_CII;
+			abundance_FeII_init = abundance_FeII;
+			abundance_SiII_init = abundance_SiII;
+			temprature_init = T;
+			energy_init = energy;
+			time_passed += dt;
+
+//			if (time_passed >= oneDynTimeStep * PARAM::ST) {
+//				hydro.Lambda = Lambda * 1e26;
+//				hydro.NUMDENS = NUMDENS_CGS;
+//				hydro.temp = T;
+//				hydro.mu = mu;
+//				hydro.Gamma = Gamma * 1e26;
+//				hydro.cooling_timescale = ((energy / fabs(Lambda)) * MASSDENS_CGS) / PARAM::yr;
+//				hydro.eng = eng_eq = energy / PARAM::SEng_per_Mass;
+//				hydro.abundances[0] = abundance_e;
+//				hydro.abundances[1] = abundance_HI;
+//				hydro.abundances[2] = abundance_HeI;
+//				hydro.abundances[3] = abundance_OI;
+//				hydro.abundances[4] = abundance_CI;
+//				hydro.abundances[5] = abundance_H2;
+//				hydro.abundances[6] = abundance_CO;
+//				hydro.abundances[7] = abundance_HII;
+//				hydro.abundances[8] = abundance_CII;
+//				hydro.abundances[9] = abundance_FeII;
+//				hydro.abundances[10] = abundance_SiII;
+//				hydro.old_abundances[0] = abundance_e;
+//				hydro.old_abundances[1] = abundance_HI;
+//				hydro.old_abundances[2] = abundance_HeI;
+//				hydro.old_abundances[3] = abundance_OI;
+//				hydro.old_abundances[4] = abundance_CI;
+//				hydro.old_abundances[5] = abundance_H2;
+//				hydro.old_abundances[6] = abundance_CO;
+//				hydro.old_abundances[7] = abundance_HII;
+//				hydro.old_abundances[8] = abundance_CII;
+//				hydro.old_abundances[9] = abundance_FeII;
+//				hydro.old_abundances[10] = abundance_SiII;
+//
+////				std::cout << time_passed << " " << oneDynTimeStep * PARAM::ST
+////									<< " " << hydro.cooling_timescale << std::endl;
+//				break;
+//			}
+		} else {
+			abundance_e = abundance_e_init;
+			abundance_HI = abundance_HI_init;
+			abundance_OI = abundance_OI_init;
+			abundance_CI = abundance_CI_init;
+			abundance_H2 = abundance_H2_init;
+			abundance_CO = abundance_CO_init;
+			abundance_HII = abundance_HII_init;
+			abundance_CII = abundance_CII_init;
+			abundance_FeII = abundance_FeII_init;
+			abundance_SiII = abundance_SiII_init;
+			T = temprature_init;
+			energy = energy_init;
+
+			//
+
+			dt *= 0.8;
+		}
+
+	}
+}
 int main() {
 	Particles ps;
 
@@ -700,9 +982,76 @@ int main() {
 		ps.push_back(pi);
 
 	}
+#elif KI2000_W6_CHEM
+	double xmid = .5 * domain_len;
+	int npartsl = 200;
+	int npartsr = 200;
+	nparts = npartsl + npartsr;
+	double dxl = xmid / npartsl;
+	double dxr = xmid / npartsr;
+	cout << "in main dxl: " << dxl << endl;
+
+	for (F64 x = xmin+.25*dxr; x < xmax; x += dxr) {
+		id++;
+		Particle pi;
+		pi.pos = x;
+		pi.id = id;
+
+		pi.vel =- 404.40047;
+
+		double mu = 1.4;
+		double mu_new = 1.4;
+		const F64 T = 8491.0;
+		const F64 n_H = 0.1;
+		const F64 x_e = 0.03;
+		const F64 n_H2 = 1e-7;
+		const F64 x_2 = n_H2 / n_H;
+		F64 NUMDENS_CGS = 0;
+		for (int i = 0; i < 100; i++) {
+			mu = mu_new;
+			pi.dens = mu * n_H * PARAM::PROTONMASS_CGS / PARAM::SMassDens;
+			NUMDENS_CGS = pi.dens * PARAM::SMassDens / (mu * PARAM::PROTONMASS);
+
+			pi.abundances[0] = fitAB_E(NUMDENS_CGS);
+			pi.abundances[1] = fitAB_HI(NUMDENS_CGS);
+			pi.abundances[2] = PARAM::i_abundance_HeI;
+			pi.abundances[3] = PARAM::i_abundance_OI;
+			pi.abundances[4] = PARAM::i_abundance_CI;
+			pi.abundances[5] = fitAB_H2(NUMDENS_CGS);
+			pi.abundances[6] = fitAB_CO(NUMDENS_CGS);
+			pi.abundances[7] = fmax(1. - 2. * pi.abundances[5] - pi.abundances[1], 0);
+			pi.abundances[8] = fmax(pi.abundances[0] - pi.abundances[7] - PARAM::i_abundance_Si, 0);
+			pi.abundances[9] = PARAM::i_abundance_Fe;
+			pi.abundances[10] = PARAM::i_abundance_Si;
+			mu_new = pi.abundances[1] + pi.abundances[7] + 2.0 * pi.abundances[5] + 4.0 * pi.abundances[2];
+			mu_new /= (pi.abundances[1] + pi.abundances[7] + pi.abundances[5] + pi.abundances[2] + pi.abundances[0]);
+			if (fabs(mu - mu_new) < 1e-3) {
+				break;
+			}
+		}
+		//mu= 1.21676
+		//n_H=0.1
+		//we want PARAM::SMassDens to be 2.03517e-25!
+		cout<<"we want PARAM::SMassDens to be : "<<mu * n_H * PARAM::PROTONMASS_CGS <<endl;
+		//therefore
+		cout<<" Therefore the SM: "<<PARAM::SL*PARAM::SL*PARAM::SL*mu * n_H * PARAM::PROTONMASS_CGS/PARAM:: M_SUN_cgs <<endl;
+//
+//		pi.NUMDENS = NUMDENS;
+		pi.mass = pi.dens * dxr;
+		pi.pres = (1.1 + pi.abundances[0] - pi.abundances[5]) * NUMDENS_CGS * T * PARAM::KBOLTZ_CGS / PARAM::SPres;
+
+		pi.eng = pi.pres / ((PARAM::GAMMA - 1.0) * pi.dens);
+
+		F64 tem = mu * PARAM::PROTONMASS_CGS * pi.pres * PARAM::SEng_per_Mass / (pi.dens * PARAM::KBOLTZ_cgs * (1.1 + PARAM::i_abundance_e - PARAM::i_abundance_H2));
+		pi.mu = mu;
+		pi.NUMDENS = NUMDENS_CGS;
+		pi.temp = tem;
+		pi.smth = pi.mass / pi.dens;
+		pi.TYPE = TYPE_FLUID;
+		ps.push_back(pi);
+
+	}
 #endif
-	FILE* fp;
-	fp = fopen("test1.txt", "w");
 
 	Domain domain;
 	domain.min.x = xmin;
@@ -717,11 +1066,16 @@ int main() {
 	for (int i = 0; i < 10; i++) {
 		calc_density(ps, nparts);
 	}
-	copyGhosts(domain, ps, nparts);
 	calc_presure(ps, nparts, glb_dt);
 	calc_force_G(ps, nparts, glb_dt);
+	copyGhosts(domain, ps, nparts);
+
 	double passtime = 0.0;
-	for (int step = 0; step < 1000; step++) {
+	for (int step = 0; step < 2000; step++) {
+		char filename[256];
+		sprintf(filename, "result/%04d.dat", step);
+		FILE* fp;
+		fp = fopen(filename, "w");
 		passtime += glb_dt;
 		cout << "in main time passed:  " << passtime * 100 << " step: " << step << endl;
 //		nparts = ps.size();
@@ -741,11 +1095,13 @@ int main() {
 			calc_density(ps, nparts);
 		}
 		copyGhosts(domain, ps, nparts);
+		nparts = ps.size();
+		for (int i = 0; i < nparts; i++) {
+			fprintf(fp, "%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\n", ps[i].pos.x * PARAM::SL / PARAM::PC_CGS, ps[i].dens, ps[i].eng, ps[i].pres, ps[i].acc.x,
+					ps[i].eng_dot, ps[i].vel.x * PARAM::SVel / 1e5, ps[i].smth, ps[i].mu, log10(ps[i].temp),log10(ps[i].NUMDENS));
+		}
 	}
-	nparts = ps.size();
-	for (int i = 0; i < nparts; i++) {
-		fprintf(fp, "%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\n", ps[i].pos.x, ps[i].dens, ps[i].eng, ps[i].pres, ps[i].acc.x, ps[i].eng_dot, ps[i].vel.x, ps[i].smth);
-	}
+
 //	cout << res[0][3].pos << endl;
 	return 0;
 }
