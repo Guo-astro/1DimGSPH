@@ -1,0 +1,11 @@
+set term gif animate optimize size 480,360
+set output 'ab_e_chem.gif'
+set xrange[0.01:0.1]
+set log x
+do for [j = 0:1999 ] {
+   plot sprintf("../result/%04d.dat", j) u 1:12 w p 
+}
+
+set out
+set terminal wxt enhanced
+

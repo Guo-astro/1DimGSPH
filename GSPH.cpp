@@ -522,7 +522,7 @@ void FinalKick(Particles &ps, double dt, long nparts) {
 		ps[i].temp = 1.4 * PARAM::PROTONMASS_CGS * ps[i].pres * PARAM::SEng_per_Mass / (ps[i].dens * PARAM::KBOLTZ_cgs * (1.1 + PARAM::i_abundance_e - PARAM::i_abundance_H2));
 		ps[i].NUMDENS = ps[i].dens * PARAM::SMassDens / (ps[i].mu * PARAM::PROTONMASS);
 
-//		evolve_abundance(ps[i], dt);
+		evolve_abundance(ps[i], dt);
 		if (ps[i].pos.x != ps[i].pos.x) {
 			cout << "nan occured in finalk kick!" << endl;
 		}
@@ -1071,13 +1071,14 @@ int main() {
 	copyGhosts(domain, ps, nparts);
 
 	double passtime = 0.0;
-	for (int step = 0; step < 2000; step++) {
+	for (int step = 0; step < 794; step++) {
 		char filename[256];
 		sprintf(filename, "result/%04d.dat", step);
 		FILE* fp;
 		fp = fopen(filename, "w");
 		passtime += glb_dt;
-		cout << "in main time passed:  " << passtime * 100 << " step: " << step << endl;
+		cout << "in main time passed:  " << passtime*PARAM::ST/PARAM::yr << " step: " << step << endl;
+
 //		nparts = ps.size();
 //		InitialKick(ps, glb_dt, nparts);
 //		FullDrift(ps, glb_dt, nparts);
@@ -1097,8 +1098,8 @@ int main() {
 		copyGhosts(domain, ps, nparts);
 		nparts = ps.size();
 		for (int i = 0; i < nparts; i++) {
-			fprintf(fp, "%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\n", ps[i].pos.x * PARAM::SL / PARAM::PC_CGS, ps[i].dens, ps[i].eng, ps[i].pres, ps[i].acc.x,
-					ps[i].eng_dot, ps[i].vel.x * PARAM::SVel / 1e5, ps[i].smth, ps[i].mu, log10(ps[i].temp),log10(ps[i].NUMDENS));
+			fprintf(fp, "%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\n", ps[i].pos.x * PARAM::SL / PARAM::PC_CGS, ps[i].dens, ps[i].eng, ps[i].pres, ps[i].acc.x,
+					ps[i].eng_dot, ps[i].vel.x * PARAM::SVel / 1e5, ps[i].smth, ps[i].mu, log10(ps[i].temp),log10(ps[i].NUMDENS),log10(ps[i].abundances[0]),log10(ps[i].abundances[5]));
 		}
 	}
 
