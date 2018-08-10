@@ -88,114 +88,104 @@ void find_nnbs(const Particle &pi, const Particles &ps, RellocatableArray<Partic
 }
 void calc_density(Particles &ps, long nparts) {
 	kernel_t ker;
-//	nparts = ps.size();
 	double hmin = 1e30;
-	for (int i = 0; i < nparts; i++) {
+	for (int i = 0; i < ps.size(); i++) {
+		if (ps[i].id > 1000) {
+			continue;
+		}
 		double tmp_dens = 0.0;
 		ps[i].dens = 0.0;
 		ps[i].OMEGA = 0.0;
-//		nparts = ps.size();
 		RellocatableArray<Particle> nbrs;
 		find_nnbs(ps[i], ps, nbrs, nparts);
-#ifdef I2000_VARIABLE_SMTH
-		for (int j = 0; j < nbrs.size(); j++) {
-			F64vec rij = ps[i].pos - nbrs[j].pos;
-//			ps[i].dens += nbrs[j].mass * ker.W(rij, ps[i].smth);
-			tmp_dens += nbrs[j].mass * ker.W(rij, CSMOOTH * ps[i].smth);
-			ps[i].OMEGA += nbrs[j].mass * ker.DW_h(rij, ps[i].smth);
-		}
 
-		ps[i].smth = ps[i].mass / tmp_dens;
-		hmin = fmin(ps[i].smth,hmin);
 		for (int j = 0; j < nbrs.size(); j++) {
 			F64vec rij = ps[i].pos - nbrs[j].pos;
 			ps[i].dens += nbrs[j].mass * ker.W(rij, ps[i].smth);
-		}
-		ps[i].OMEGA *= ps[i].smth / (1. * ps[i].dens);
-		ps[i].OMEGA = 1.0;
+			if (ps[i].dens != ps[i].dens || ps[i].smth != ps[i].smth || nbrs[j].smth != nbrs[j].smth) {
+				cout << "Nan in dens " << nbrs[j].mass << " " << ps[i].dens << " " << rij.x << " " << ps[i].smth << " " << ps[i].id << " " << nbrs[j].dens << " " << nbrs[j].smth
+						<< " " << ker.W(rij, ps[i].smth) << endl;
+				while (true) {
+				}
+			}
 
-#elif NAIVE_VARIABLE_SMTH
-		for (int j = 0; j < nbrs.size(); j++) {
-			F64vec rij = ps[i].pos - nbrs[j].pos;
-			ps[i].dens += nbrs[j].mass * ker.W(rij, ps[i].smth);
+			if (ps[i].dens > 5) {
+				cout << "too small smnth in dens " << " mass " << nbrs[j].mass << " dens " << ps[i].dens << " rijx " << rij.x << " pos " << ps[i].pos.x << " smth " << ps[i].smth
+						<< " id " << ps[i].id << " densj " << nbrs[j].dens << " smthj " << nbrs[j].smth << " idj " << nbrs[j].id << " ker " << ker.W(rij, ps[i].smth) << endl;
+//				ps[i].smth = 1e-4;
+
+//				while (true) {
+//				}
+			}
 		}
+
 		ps[i].smth = ps[i].mass / ps[i].dens;
-#else
-		for (int j = 0; j < nbrs.size(); j++) {
-			F64vec rij = ps[i].pos - nbrs[j].pos;
-			ps[i].dens += nbrs[j].mass * ker.W(rij, ps[i].smth);
-		}
-		ps[i].smth = 0.01;
-#endif
 	}
-//	for (int i = 0; i < nparts; i++) {
-//		ps[i].smth = (ps[i].smth > 2. * hmin) ? 2. * hmin : ps[i].smth;
-//	}
 }
 void calc_presure(Particles &ps, long nparts, double &glb_dt) {
 	kernel_t ker;
 //	nparts = ps.size();
-	for (int i = 0; i < nparts; i++) {
+	glb_dt = 1e30;
+	for (int i = 0; i < ps.size(); i++) {
+		if (ps[i].id > 1000) {
+			continue;
+		}
 		ps[i].pres = ps[i].dens * ps[i].eng * (GAMMA - 1.0);
-		ps[i].snds = sqrt(GAMMA * ps[i].pres / ps[i].dens);
-		ps[i].dt = 0.5 * ps[i].smth / ps[i].snds;
+		ps[i].snds = sqrt(1e-18 + GAMMA * ps[i].pres / ps[i].dens);
+		ps[i].dt = 0.2 * ps[i].smth / ps[i].snds;
+		double vel_crit = 0.3 * fabs(ps[i].pos.x) / sqrt(ps[i].vel * ps[i].vel);
 		glb_dt = fmin(glb_dt, ps[i].dt);
+		glb_dt = fmin(glb_dt, vel_crit);
+		if (glb_dt < 1e-7) {
+			cout << "too small dt" << glb_dt << " " << ps[i].pos.x << " " << ps[i].smth << " " << ps[i].id << endl;
+//			ps[i].smth = 1e-3;z
+//			while (true) {
+//			}
+//			glb_dt = 1e-9;
+		}
+//
+//		}
+
 	}
 }
 //TODO higher dimension notice
 void copyGhosts(const Domain &d, Particles &ps, long nparts) {
-	double srch = 6.;
-//		if (ps[i].TYPE == TYPE_GHOST) {
-	ps.remove_ghost(nparts);
+	double srch = 18;
 
-//		}
-//	nparts = ps.size();
-	for (int i = 0; i < nparts; i++) {
-		if (ps[i].pos.x < 0.0 || ps[i].pos.x >= 0.8) {
-			ps.remove(ps[i].id);
-		}
+	ps.remove_ghost();
+	for (int i = 0; i < ps.size(); i++) {
+
 		double partsx = ps[i].pos.x;
-		if (fabs(partsx - d.min.x) < srch * ps[i].smth) {
-//			ps[i].pos.x = 2.0 * d.min.x - partsx;
-//			ps[i].vel *= -1.;
+		double _minx = 0.0;
+		double diff = partsx - _minx;
+		if (diff < srch * ps[i].smth && diff > 0.0) {
 			Particle ghost;
-			ghost.pos.x = 2.0 * d.min.x - partsx;
-			ghost.acc *= -1;
+			ghost.pos.x = _minx - diff;
+
+			if (ps[i].pos.x == 0 || ps[i].pos.x < 1e-5) {
+				cout << "cp ghost ptcl in < boundary domain!!" << ps[i].pos.x << endl;
+
+//				ghost.pos.x = d.min.x - diff - 1e-4;
+				cout << ps[i].eng << endl;
+
+			}
+
+			ghost.acc = ps[i].acc;
 			ghost.mass = ps[i].mass;
 			ghost.dens = ps[i].dens;
 			ghost.pres = ps[i].pres;
 			ghost.eng = ps[i].eng;
 			ghost.smth = ps[i].smth;
-			ghost.vel *= -1.0;
-			ghost.id = ps[i].id + nparts;
+			ghost.vel = -ps[i].vel;
+			ghost.id = ps[i].id + nparts + 1000;
+//			cout << ghost.id << endl;
+
 			ghost.TYPE = TYPE_GHOST;
 			ps.push_back(ghost);
-		} else if (fabs(partsx - d.max.x) < srch * ps[i].smth) {
-//			ps[i].pos.x = 2.0 * d.max.x - partsx;
-//			ps[i].vel *= -1.;
-			Particle ghost;
-			ghost.pos.x = 2.0 * d.max.x - partsx;
-			ghost.acc *= -1;
-			ghost.mass = ps[i].mass;
-			ghost.dens = ps[i].dens;
-			ghost.pres = ps[i].pres;
-			ghost.smth = ps[i].smth;
-			ghost.eng = ps[i].eng;
-			ghost.vel *= -1.0;
-			ghost.id = ps[i].id + nparts;
-			ghost.TYPE = TYPE_GHOST;
-			ps.push_back(ghost);
+
 		}
 	}
-//	for (int i = 0; i < nparts; i++) {
-//		double partsx = ps[i].pos.x;
-//		if(fabs(ps[i].pos.x -0.8)<srch * ps[i].smth){
-//			ps[i].pos.x -= 0.80;
-//		}
-//		if(fabs(ps[i].pos.x -0.)<srch * ps[i].smth){
-//					ps[i].pos.x += 0.80;
-//				}
-//	}
+//	cout << ps.size() << endl;
 }
 void calc_gradients(Particles &ps, long nparts) {
 	kernel_t kernel;
@@ -211,7 +201,7 @@ void calc_gradients(Particles &ps, long nparts) {
 		RellocatableArray<Particle> nbrs;
 		find_nnbs(ps[i], ps, nbrs, nparts);
 		const F64 rhoi_inv2 = 1.0 / (ps[i].dens * ps[i].dens);
-		if(ps[i].pos.x<0.4&&ps[i].pos.x>0.39){
+		if (ps[i].pos.x < 0.4 && ps[i].pos.x > 0.39) {
 			const F64 rhoi_inv2 = 1.0 / (ps[i].dens * ps[i].dens);
 		}
 		for (S32 j = 0; j < nbrs.size(); ++j) {
@@ -246,6 +236,9 @@ void calc_force(Particles &ps, long nparts, double &glb_dt) {
 	kernel_t kernel;
 
 	for (int i = 0; i < nparts; i++) {
+		if (ps[i].id > 1000) {
+			continue;
+		}
 		ps[i].acc = 0.0;
 		ps[i].eng_dot = 0.0;
 		F64 v_sig_max = 0.0;
@@ -298,175 +291,24 @@ void calc_riemann_solver(const Particle &ep_i, const Particle &ep_j, const F64 &
 	F64 rho1, rho2, v1, v2, p1, p2;
 	F64 vi = ep_i.vel * eij;
 	F64 vj = ep_j.vel * eij;
-#ifdef I2000_SECOND_ORDER_RIEMMAN_SOLVER
-	F64 drdsi, drdsj, dpdsi, dpdsj, dvdsi, dvdsj;
 
-	F64 si = .5 * delta;
-	F64 sj = .5 * delta;
-	drdsi = ep_i.graddens * eij;
-	drdsj = ep_j.graddens * eij;
-	dpdsi = ep_i.gradpres * eij;
-	dpdsj = ep_j.gradpres * eij;
-	dvdsi = ep_i.gradvel_x * eij*eij.x;
-	dvdsj = ep_j.gradvel_x * eij *eij.x;
-//	std::cout<<drdsi<<std::endl;
-	if (dvdsi * dvdsj <0.0||drdsi *drdsj<0.0||dpdsi *dpdsj<0.0) {
-		dvdsi = dvdsj = 0.0;
-		drdsi = drdsj = 0.0;
-		dpdsi = dpdsj = 0.0;
-	}
-	if (3.0 * fabs(vj - vi) > ((ep_i.snds < ep_j.snds) ? ep_i.snds : ep_j.snds)) {
-		//		//monotonisity constraint
-
-		drdsi = drdsj = 0.0;
-		dpdsi = dpdsj = 0.0;
-		dvdsi = dvdsj = 0.0;
-	}
-	double ddensi = drdsi * (ss + ep_i.snds * 0.5 * dt - si);
-	double dpresi = dpdsi * (ss + ep_i.snds * 0.5 * dt - si);
-	double dveli = dvdsi * (ss + ep_i.snds * 0.5 * dt - si);
-	double ddensj = drdsj * (ss - ep_j.snds * 0.5 * dt + sj);
-	double dpresj = dpdsj * (ss - ep_j.snds * 0.5 * dt + sj);
-	double dvelj = dvdsj * (ss - ep_j.snds * 0.5 * dt +sj);
-//	double ddensi = fabs(drdsi) * (ss + ep_i.snds * 0.5 * dt - si);
-//	double dpresi = fabs(dpdsi) * (ss + ep_i.snds * 0.5 * dt - si);
-//	double dveli = fabs(dvdsi) * (ss + ep_i.snds * 0.5 * dt - si);
-//	double ddensj = fabs(drdsj) * (ss - ep_j.snds * 0.5 * dt + sj);
-//	double dpresj = fabs(dpdsj) * (ss - ep_j.snds * 0.5 * dt + sj);
-//	double dvelj = fabs(dvdsj) * (ss - ep_j.snds * 0.5 * dt +sj);
-// ddensi =  0.0;
-// dpresi =  0.0;
-// ddensj =  0.0;
-// dpresj =  0.0;
-// dveli =   0.0;
-// dvelj =   0.0;
-
-	rho1 = ep_i.dens + ddensi;
-	p1 = ep_i.pres + dpresi;
-	v1 = vi + dveli;
-	rho2 = ep_j.dens + ddensj;
-	p2 = ep_j.pres + dpresj;
-	v2 = vj + dvelj;
-	if (rho1 < 0.0||p1 < 0.0||rho2 < 0.0||p2 < 0.0) {
-		rho1 = ep_i.dens;
-		p1 = ep_i.pres;
-		v1 = vi;
-		rho2 = ep_j.dens;
-		p2 = ep_j.pres;
-		v2 = vj;
-	}
-
-#elif VANLEER__SECOND_ORDER_RIEMMAN_SOLVER
-	F64vec dr = ep_i.pos - ep_j.pos;
-	F64 dsij = sqrt(dr*dr);
-	F64 drdsi, drdsj, dpdsi, dpdsj, dvdsi, dvdsj;
-
-	F64 si = .5 * delta;
-	F64 sj = .5 * delta;
-	drdsi = ep_i.graddens * eij;
-	drdsj = ep_j.graddens * eij;
-	dpdsi = ep_i.gradpres * eij;
-	dpdsj = ep_j.gradpres * eij;
-	dvdsi = ep_i.gradvel_x * eij * eij.x;
-	dvdsj = ep_j.gradvel_x * eij * eij.x;
-	F64 dri = dsij*drdsi;
-	F64 dpi = dsij*dpdsi;
-	F64 dvi = dsij*dvdsi;
-
-	F64 drj = dsij*drdsj;
-	F64 dpj = dsij*dpdsj;
-	F64 dvj = dsij*dvdsj;
-
-	F64 dri_dash =2*dri-(ep_i.dens-ep_j.dens);
-	F64 dpi_dash = 2*dpi-(ep_i.pres-ep_j.pres);
-	F64 dvi_dash =2*dvi-(vi-vj);
-
-	F64 drj_dash = 2*drj-(ep_j.dens-ep_i.dens);
-	F64 dpj_dash = 2*dpj-(ep_j.pres-ep_i.pres);
-	F64 dvj_dash = 2*dvj-(vj-vi);
-	bool same_densi_sign = (std::signbit(ep_i.dens-ep_j.dens)+
-			std::signbit(dri)+
-			std::signbit(dri_dash)==3)| (std::signbit(ep_i.dens-ep_j.dens)+
-			std::signbit(dri)+
-			std::signbit(dri_dash)==0);
-	bool same_presi_sign = (std::signbit(ep_i.pres-ep_j.pres)+
-			std::signbit(dpi)+
-			std::signbit(dpi_dash)==3)| (std::signbit(ep_i.pres-ep_j.dens)+
-			std::signbit(dpi)+
-			std::signbit(dpi_dash)==0);
-	bool same_veli_sign = (std::signbit(vj-vi)+
-			std::signbit(dvi)+
-			std::signbit(dvi_dash)==3)| (std::signbit(vj-vi)+
-			std::signbit(dvi)+
-			std::signbit(dvi_dash)==0);
-	bool same_densj_sign = (std::signbit(ep_j.dens-ep_i.dens)+
-			std::signbit(drj)+
-			std::signbit(drj_dash)==3)| (std::signbit(ep_j.dens-ep_i.dens)+
-			std::signbit(drj)+
-			std::signbit(drj_dash)==0);
-	bool same_presj_sign = (std::signbit(ep_j.pres-ep_i.pres)+
-			std::signbit(dpj)+
-			std::signbit(dpj_dash)==3)| (std::signbit(ep_j.pres-ep_i.dens)+
-			std::signbit(dpj)+
-			std::signbit(dpj_dash)==0);
-	bool same_velj_sign = (std::signbit(vi-vj)+
-			std::signbit(dvj)+
-			std::signbit(dvj_dash)==3)| (std::signbit(vi-vj)+
-			std::signbit(dvj)+
-			std::signbit(dvj_dash)==0);
-	F64 drmonoi =(same_densi_sign)? (fmin(fmin(2.0*fabs(ep_i.dens-ep_j.dens),fabs(dri)) ,2.0*fabs(dri_dash))*(dri>0.0?1.0:-1.0)):0.0;
-	F64 dpmonoi =(same_presi_sign)?(fmin(fmin(2.0*fabs(ep_i.pres-ep_j.pres),fabs(dpi)) ,2.0*fabs(dpi_dash))*(dpi>0.0?1.0:-1.0)):0.0;
-	F64 dvmonoi =(same_veli_sign)?(fmin(fmin(2.0*fabs(vi-vj),fabs(dvi)) ,2.0*fabs(dvi_dash))*(dvi>0.0?1.0:-1.0)):0.0;
-
-	F64 drmonoj =(same_densj_sign)? (fmin(fmin(2.0*fabs(ep_j.dens-ep_i.dens),fabs(drj)) ,2.0*fabs(drj_dash))*(drj>0.0?1.0:-1.0)):0.0;
-	F64 dpmonoj =(same_presj_sign)?(fmin(fmin(2.0*fabs(ep_j.pres-ep_i.pres),fabs(dpj)) ,2.0*fabs(dpj_dash))*(dpj>0.0?1.0:-1.0)):0.0;
-	F64 dvmonoj = (same_velj_sign)?(fmin(fmin(2.0*fabs(vj-vi),fabs(dvj)) ,2.0*fabs(dvj_dash))*(dvj>0.0?1.0:-1.0)):0.0;
-	if ((3. * fabs(vj - vi) > ((ep_i.snds < ep_j.snds) ? ep_i.snds : ep_j.snds))) {
-		//						std::cout<< ps.graddens<<" "<<ps.grav<<" "<<ps.snds<<" "<<ps.pres<<std::endl;
-		drmonoi = 0.0;
-		drmonoj= 0.0;
-		dpmonoi = 0.0;
-		dpmonoj= 0.0;
-		dvmonoi = 0.0;
-		dvmonoj = 0.0;
-	}
-
-	//set initial condition of riemann problem
-
-	double ddensi = .5*drmonoi* ( 1.0- ep_i.snds *dt/dsij );
-	double dpresi = .5*dpmonoi* ( 1.0- ep_i.snds *dt/dsij );
-	double ddensj = .5*drmonoj*( 1.0- ep_j.snds *dt/dsij );
-	double dpresj = .5*dpmonoj*( 1.0- ep_j.snds *dt/dsij );
-	double dveli = .5*dvmonoi * ( 1.0- ep_i.snds* dt/dsij);
-	double dvelj = .5*dvmonoj*( 1.0- ep_j.snds* dt/dsij);
-
-	rho1 = ep_i.dens + ddensi;
-	p1 = ep_i.pres + dpresi;
-	v1 = vi + dveli;
-	rho2 = ep_j.dens + ddensj;
-	p2 = ep_j.pres + dpresj;
-	v2 = vj + dvelj;
-#else
 	rho1 = ep_i.dens;
 	p1 = ep_i.pres;
 	v1 = vi;
 	rho2 = ep_j.dens;
 	p2 = ep_j.pres;
 	v2 = vj;
-#endif
+
 	F64 ppre, p, v;
 	F64 W1, W2;
 	const F64 alpha = (2.0 * GAMMA) / (GAMMA - 1.0);
 	p = .5 * (p1 + p2);
-//	p=ep_j.snds*p1+ep_i.snds*p2-ep_i.snds*ep_j.snds*(v1-v2)/(ep_i.snds+ep_j.snds);
 	double critif = 1.0 - 1.0e-6;
-	p1 += 1e-8;
-	p2 += 1e-8;
 	if (p1 <= 0.0 || p2 <= 0.0) {
 		pstar = .5 * (p1 + p2);
 		vstar = .5 * (v1 + v2);
 	} else {
-		for (U32 loop = 0; loop < 400; loop++) {
+		for (U32 loop = 0; loop < 50; loop++) {
 			ppre = p;
 			if ((p / p1 < critif))
 				W1 = sqrt(p1 * rho1) * ((GAMMA - 1.0) / (2.0 * sqrt(GAMMA))) * (1.0 - p / p1) / (1.0 - pow(p / p1, 1.0 / alpha));
@@ -479,8 +321,11 @@ void calc_riemann_solver(const Particle &ep_i, const Particle &ep_j, const F64 &
 			p = ((p2 / W2 + p1 / W1) + v2 - v1) / (1.0 / W2 + 1.0 / W1);
 			if (p < 0.0)
 				p = 0.5 * ppre;
-			if (fabs(p - ppre) < 1e-18)
+			if (fabs(p - ppre) < 1e-3) {
+//				std::cout <<W1 << "==" << W2<< "=="<< v2 <<" "<<v1<<" "<<p2<<" "<<p1<<" "<< p << std::endl;
+
 				break;
+			}
 		}
 		vstar = ((W1 * v1 + W2 * v2) + p2 - p1) / (W1 + W2);
 		pstar = p;
@@ -489,6 +334,7 @@ void calc_riemann_solver(const Particle &ep_i, const Particle &ep_j, const F64 &
 			pstar = .5 * (p1 + p2);
 			std::cout << p1 << "==" << p2 << "==" << pstar << std::endl;
 		}
+
 	}
 }
 struct interP {
@@ -502,8 +348,11 @@ struct interP {
 void calc_force_G(Particles &ps, long nparts, const double &glb_dt) {
 	kernel_t kernel;
 
-	calc_gradients(ps, nparts);
+//	calc_gradients(ps, nparts);
 	for (S32 i = 0; i < nparts; ++i) {
+		if (ps[i].id > 1000) {
+			continue;
+		}
 		ps[i].acc = 0.0;
 		ps[i].eng_dot = 0.0;
 //		nparts = ps.size();
@@ -531,85 +380,34 @@ void calc_force_G(Particles &ps, long nparts, const double &glb_dt) {
 				const F64 sj = nbrs[j].pos * eij;
 				const F64 dsij = si - sj;
 				F64vec vij = 0.0;
-//				const F64vec gradW = 0.5
-//									* (kernel.gradW(dr, ps[i].smth)
-//											+ kernel.gradW(dr, nbrs[j].smth));
-				gradW_hsi = kernel.gradW(dr, sqrt(2.0) * ps[i].smth);
-				gradW_hsj = kernel.gradW(dr, sqrt(2.0) * nbrs[j].smth);
+				gradW_hsi = kernel.gradW(dr, sqrt(2)*ps[i].smth);
+				gradW_hsj = kernel.gradW(dr,sqrt(2)*nbrs[j].smth);
 
 				calc_Vij2_and_ss(ps[i], nbrs[j], VIJ_I, VIJ_J, sstar, delta, eij);
+
 				calc_riemann_solver(ps[i], nbrs[j], sstar, delta, eij, glb_dt, PSTAR, VSTAR);
-//				interP ips;
-//				ips.PSTAR = PSTAR;
-//				ips.VIJ_I = VIJ_I;
-//				ips.VIJ_J = VIJ_J;
-//				ips.VSTAR = VSTAR;
-//				ips.sstar = sstar;
-//				intervals.push_back(ips);
-//				cout << VSTAR << " " << i << " " << j << endl;
-//				vij = .5 * (dv);
-//				PSTAR = .5 * (ps[i].pres + ps[j].pres);
-#ifdef VARIABLE_SMTH
-				interpo = (PSTAR*eij) * (gradW_hsi * VIJ_I + gradW_hsj * VIJ_J );
-#else
-//				VIJ_I =VIJ_J=pow(PSTAR/(ps[i].eng*2/3.),-2.);
-				interpo = (PSTAR) * (gradW_hsi * VIJ_I / ps[i].OMEGA + gradW_hsj * VIJ_J / ps[i].OMEGA);
-#endif
+//				}
+
+				interpo = (PSTAR ) * (gradW_hsi * VIJ_I + gradW_hsj * VIJ_J);
 				ps[i].acc -= nbrs[j].mass * interpo;
+				vij = VSTAR*eij;
+				ps[i].eng_dot -= nbrs[j].mass * PSTAR * (vij - ps[i].vel_half) * (gradW_hsi * VIJ_I + gradW_hsj * VIJ_J);
+
+				if (ps[i].acc.x != ps[i].acc.x) {
+					cout << "Non occur in force:" << PSTAR << " " << gradW_hsi << " " << VIJ_I << " " << VIJ_J << " " << gradW_hsj << " " << nbrs[j].smth << " " << nbrs[j].id
+							<< endl;
+					while (true) {
+					}
+				}
+				if (ps[i].eng_dot != ps[i].eng_dot) {
+					cout << "Non occur in eng:" << PSTAR << " " << gradW_hsi << " " << VIJ_I << " " << VIJ_J << " " << gradW_hsj << " " << nbrs[j].smth << " " << nbrs[j].id
+							<< endl;
+					while (true) {
+					}
+				}
 
 			}
 		}
-		ps[i].vel_half = ps[i].vel + 0.5 * ps[i].acc * glb_dt;
-		for (S32 j = 0; j < nbrs.size(); ++j) {
-			if (ps[i].pos != nbrs[j].pos) {
-				F64 VIJ_I, VIJ_J, PSTAR, VSTAR;
-				F64 sstar = 0.0;
-				F64vec interpo = 0.0;
-				F64vec eij;
-				F64vec gradW_hsi;
-				F64vec gradW_hsj;
-				const F64vec dv = ps[i].vel - nbrs[j].vel;
-				const F64vec dr = ps[i].pos - nbrs[j].pos;
-				const F64 delta = sqrt(dr * dr);
-
-				eij = dr / delta;
-//				const F64 si = ps[i].pos * eij;
-//				const F64 sj = nbrs[j].pos * eij;
-//				const F64 dsij = si - sj;
-				F64vec vij = 0.0;
-				//				const F64vec gradW = 0.5
-				//									* (kernel.gradW(dr, ps[i].smth)
-				//											+ kernel.gradW(dr, nbrs[j].smth));
-				gradW_hsi = kernel.gradW(dr, sqrt(2.0) * ps[i].smth);
-				gradW_hsj = kernel.gradW(dr, sqrt(2.0) * nbrs[j].smth);
-				calc_Vij2_and_ss(ps[i], nbrs[j], VIJ_I, VIJ_J, sstar, delta, eij);
-				calc_riemann_solver(ps[i], nbrs[j], sstar, delta, eij, glb_dt, PSTAR, VSTAR);
-//				PSTAR = intervals[j].PSTAR;
-//				VIJ_I = intervals[j].VIJ_I;
-//				VIJ_J = intervals[j].VIJ_J;
-//				VSTAR = intervals[j].VSTAR;
-//				sstar = intervals[j].sstar;
-//				calc_Vij2_and_ss(ps[i], nbrs[j], VIJ_I, VIJ_J, sstar, delta,
-//						eij);
-//				calc_riemann_solver(ps[i], nbrs[j], sstar, delta, eij, glb_dt,
-//						PSTAR, VSTAR);
-//				double fac1, fac2;
-//					if (fabs(dr.x) > 0.0) {
-////						fac1 = 0;
-////						fac2 = 0;
-////						break;
-//					}
-//					cout<<(fabs(dr.x)>0)<<endl;
-//					double vi = VSTAR * fac1;
-//					double vj = VSTAR * fac2;
-				vij = VSTAR * eij;
-				ps[i].eng_dot -= nbrs[j].mass * PSTAR * (vij - ps[i].vel_half) * (gradW_hsi * VIJ_I / ps[i].OMEGA + gradW_hsj * VIJ_J / ps[i].OMEGA);
-//					ps[i].eng_dot -= nbrs[j].mass * PSTAR
-//												* (vi*gradW_hsi.x * VIJ_I- vhalf * gradW_hsi * VIJ_I
-//														+ vj*gradW_hsj.x * VIJ_J- vhalf * gradW_hsj * VIJ_J);
-			}
-		}
-
 	}
 
 }
@@ -680,7 +478,7 @@ void InitialKick(Particles &ps, double dt, long nparts) {
 }
 
 void FullDrift(Particles &ps, double dt, long nparts) {
-	//time becomes t + dt;
+//time becomes t + dt;
 	for (S32 i = 0; i < nparts; ++i) {
 		ps[i].pos += dt * ps[i].vel_half;
 	}
@@ -695,17 +493,25 @@ void Predict(Particles &ps, double dt, long nparts) {
 
 void FinalKick(Particles &ps, double dt, long nparts) {
 //	nparts = ps.size();
-	for (S32 i = 0; i < nparts; ++i) {
-//		ps[i].vel=0.0;
-//		ps[i].eng=0.0;
-//		ps[i].vel = ps[i].vel_half + 0.5 * dt * ps[i].acc;
-//		ps[i].eng = ps[i].eng_half + 0.5 * dt * ps[i].eng_dot;
-//		ps[i].vel += dt * ps[i].acc;
-//		ps[i].pos += ps[i].vel * dt;
-//		ps[i].eng += dt * ps[i].eng_dot;
-		ps[i].pos += ps[i].vel_half * dt;
-			ps[i].vel += dt * ps[i].acc;
-			ps[i].eng += dt * ps[i].eng_dot;
+	for (S32 i = 0; i < ps.size(); ++i) {
+		if (ps[i].id > 1000) {
+			continue;
+		}
+		ps[i].vel_half = ps[i].vel + .5 * dt * ps[i].acc;
+		ps[i].vel = ps[i].vel + dt * ps[i].acc;
+		ps[i].pos += ps[i].vel * dt;
+		ps[i].eng += dt * ps[i].eng_dot;
+		if (ps[i].pos.x != ps[i].pos.x) {
+			cout << "nan occured in finalk kick!" << endl;
+		}
+
+		if (ps[i].pos.x == 0 || ps[i].pos.x < 1e-5) {
+			cout << "final kick!!" << ps[i].pos.x << endl;
+
+//			ps[i].pos.x = ps[i].pos.x + 1.e-4;
+			cout << ps[i].eng << endl;
+
+		}
 #ifdef ENERGY_GUARD
 		if (ps[i].eng <= 0.0) {
 			ps[i].eng -= dt * ps[i].eng_dot;
@@ -870,6 +676,30 @@ int main() {
 		ps.push_back(pi);
 
 	}
+#elif KI2000_W6_ADIA
+	double xmid = .5 * domain_len;
+	int npartsl = 200;
+	int npartsr = 200;
+	nparts = npartsl + npartsr;
+	double dxl = xmid / npartsl;
+	double dxr = xmid / npartsr;
+	cout << "in main dxl: " << dxl << endl;
+
+	for (F64 x = xmin+.5*dxr; x < xmax; x += dxr) {
+		id++;
+		Particle pi;
+		pi.pos = x;
+		pi.id = id;
+		pi.vel = -60;
+		pi.dens =1.0;
+		pi.mass = pi.dens * dxr;
+		pi.pres =1.0;
+		pi.smth = pi.mass / pi.dens;
+		pi.eng = pi.pres / (pi.dens * (GAMMA - 1));
+		pi.TYPE = TYPE_FLUID;
+		ps.push_back(pi);
+
+	}
 #endif
 	FILE* fp;
 	fp = fopen("test1.txt", "w");
@@ -879,32 +709,42 @@ int main() {
 	domain.max.x = xmax;
 	domain.domain_len.x = xmax - xmin;
 	double glb_dt = 1e30;
-//	copyGhosts(domain, ps, nparts);
-	calc_density(ps, nparts);
+	for (int i = 0; i < 10; i++) {
+		calc_density(ps, nparts);
+	}
+
+	copyGhosts(domain, ps, nparts);
+	for (int i = 0; i < 10; i++) {
+		calc_density(ps, nparts);
+	}
+	copyGhosts(domain, ps, nparts);
 	calc_presure(ps, nparts, glb_dt);
 	calc_force_G(ps, nparts, glb_dt);
-	copyGhosts(domain, ps, nparts);
-
 	double passtime = 0.0;
-	for (int step = 0; step < 250; step++) {
+	for (int step = 0; step < 1000; step++) {
 		passtime += glb_dt;
-		cout <<"in main time passed: " <<passtime << endl;
+		cout << "in main time passed:  " << passtime * 100 << " step: " << step << endl;
 //		nparts = ps.size();
 //		InitialKick(ps, glb_dt, nparts);
 //		FullDrift(ps, glb_dt, nparts);
 //		Predict(ps, glb_dt, nparts);
 //		nparts = ps.size();
-		calc_density(ps, nparts);
+		for (int i = 0; i < 10; i++) {
+
+			calc_density(ps, nparts);
+		}
 		calc_presure(ps, nparts, glb_dt);
 		calc_force_G(ps, nparts, glb_dt);
-//		glb_dt =0.001;S
-//		cout << glb_dt << endl;
 		FinalKick(ps, glb_dt, nparts);
+		for (int i = 0; i < 10; i++) {
+
+			calc_density(ps, nparts);
+		}
 		copyGhosts(domain, ps, nparts);
 	}
-//	nparts = ps.size();
+	nparts = ps.size();
 	for (int i = 0; i < nparts; i++) {
-		fprintf(fp, "%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\n", ps[i].pos.x, ps[i].dens, ps[i].eng, ps[i].pres, ps[i].acc.x, ps[i].eng_dot,ps[i].vel.x);
+		fprintf(fp, "%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\n", ps[i].pos.x, ps[i].dens, ps[i].eng, ps[i].pres, ps[i].acc.x, ps[i].eng_dot, ps[i].vel.x, ps[i].smth);
 	}
 //	cout << res[0][3].pos << endl;
 	return 0;
