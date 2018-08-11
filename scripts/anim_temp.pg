@@ -1,0 +1,11 @@
+
+reset
+
+set term gif animate optimize size 480,360
+set output 'temp.gif'
+do for [j = 0:1999 ] {
+   plot sprintf("../result/%04d.dat", j) u 1:10 w p 
+}
+
+set out
+set terminal wxt enhanced

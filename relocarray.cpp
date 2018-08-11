@@ -9,6 +9,7 @@ private:
 	int size_;
 	int capacity_;
 	int capacity_org_;
+
 #ifdef SANITY_CHECK_REALLOCATABLE_ARRAY
 	int n_expand_;
 	void increaseNExpand(const int n_input) {
@@ -178,44 +179,53 @@ public:
 		resizeNoInitialize(size_new);
 		data_[size_ - 1] = val;
 	}
-	void remove_ghost(long nparts) {
+	void remove_ghost() {
 #ifdef SANITY_CHECK_REALLOCATABLE_ARRAY
 		if(size_+1 > LIMIT_NUMBER_OF_TREE_PARTICLE_PER_NODE) {
 			dumpImpl();
 			std::cout<<"function: "<<__FUNCTION__<<", line: "<<__LINE__<<", file: "<<__FILE__<<std::endl;
 		}
-		assert(size_+1 <= LIMIT_NUMBER_OF_TREE_PARTICLE_PER_NODE);{
+		assert(size_+1 <= LIMIT_NUMBER_OF_TREE_PARTICLE_PER_NODE); {
 #endif
-
+		int decsize = 0;
 		// otherwise, shift array elements
-		for (unsigned int i = nparts-1; i < size_ ; i++) {
-			data_[i+1]=data_[i];
-		}
-			size_=nparts;
+		for (unsigned int i = 0; i < size_; i++) {
+//			std::cout << "check size in araay " << data_[i].id << std::endl;
 
+			if (data_[i].id > 1000 ) {
+				data_[i] = data_[i+1];
+				decsize += 1;
+			}
+
+		}
+		size_ -= decsize;
 		// decrease array size
 
 	}
-		void remove(long id) {
-		#ifdef SANITY_CHECK_REALLOCATABLE_ARRAY
-				if(size_+1 > LIMIT_NUMBER_OF_TREE_PARTICLE_PER_NODE) {
-					dumpImpl();
-					std::cout<<"function: "<<__FUNCTION__<<", line: "<<__LINE__<<", file: "<<__FILE__<<std::endl;
-				}
-				assert(size_+1 <= LIMIT_NUMBER_OF_TREE_PARTICLE_PER_NODE);{
-		#endif
+	void remove(long id) {
+#ifdef SANITY_CHECK_REALLOCATABLE_ARRAY
+		if(size_+1 > LIMIT_NUMBER_OF_TREE_PARTICLE_PER_NODE) {
+			dumpImpl();
+			std::cout<<"function: "<<__FUNCTION__<<", line: "<<__LINE__<<", file: "<<__FILE__<<std::endl;
+		}
+		assert(size_+1 <= LIMIT_NUMBER_OF_TREE_PARTICLE_PER_NODE); {
+#endif
+		int decsize = 0;
 
-				// otherwise, shift array elements
-				for (unsigned int i = 0; i < size_ ; i++) {
-					if(data_[i].id == id){
-					data_[i]=data_[i+1];
-					}
-				}
-					size_=size_-1;
+		// otherwise, shift array elements
+		for (unsigned int i = 0; i < size_; i++) {
+			std::cout << "check size in araay " << data_[i].id << std::endl;
 
-				// decrease array size
-
+			if (data_[i].id > 1000) {
+				data_[i - 1] = data_[i];
+				decsize += 1;
 			}
+
+		}
+		size_ -= decsize;
+
+		// decrease array size
+	}
 	void resizeNoInitialize(const int n) {
 #ifdef SANITY_CHECK_REALLOCATABLE_ARRAY
 		if(n > LIMIT_NUMBER_OF_TREE_PARTICLE_PER_NODE) {
