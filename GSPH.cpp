@@ -900,6 +900,18 @@ int main() {
 		ps.push_back(pi);
 //		cout << pi.eng << endl;
 	}
+
+	char filename[256];
+	sprintf(filename, "result/init.dat", 0);
+	FILE* fp;
+	fp = fopen(filename, "w");
+
+	for (int i = 0; i < ps.size(); i++) {
+		//				std::cout << ps[i].pos.x << " "<< ps[i].dens<<std::endl;
+
+		fprintf(fp, "%lld\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\n", ps[i].id, ps[i].mass, ps[i].pos.x, ps[i].dens, ps[i].eng, ps[i].pres,
+				ps[i].acc.x, ps[i].eng_dot, ps[i].vel.x, ps[i].smth, ps[i].mu, ps[i].temp, ps[i].NUMDENS, ps[i].abundances[0], ps[i].abundances[5]);
+	}
 	Domain domain;
 	domain.min.x = xmin;
 	domain.max.x = xmax;
