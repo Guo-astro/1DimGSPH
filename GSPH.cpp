@@ -406,7 +406,7 @@ void calc_force_G(Particles &ps, long nparts, const double &glb_dt) {
 
 			}
 		}
-		ps[i].acc += 1.25*getPoly53Phi_dash(sqrt(ps[i].pos.x * ps[i].pos.x)) * ps[i].pos.x / sqrt(ps[i].pos.x * ps[i].pos.x);
+		ps[i].acc += 1.25 * getPoly53Phi_dash(sqrt(ps[i].pos.x * ps[i].pos.x)) * ps[i].pos.x / sqrt(ps[i].pos.x * ps[i].pos.x);
 	}
 
 }
@@ -803,8 +803,10 @@ int main() {
 	fp = fopen(filename, "w");
 
 	for (int i = 0; i < ps.size(); i++) {
-		fprintf(fp, "%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\n", ps[i].pos.x, ps[i].dens, ps[i].eng, ps[i].pres, ps[i].acc.x, ps[i].eng_dot,
-				ps[i].vel.x * PARAM::SVel / 1e5, ps[i].smth, ps[i].mu, log10(ps[i].temp), log10(ps[i].NUMDENS), log10(ps[i].abundances[0]), log10(ps[i].abundances[5]));
+		//				std::cout << ps[i].pos.x << " "<< ps[i].dens<<std::endl;
+
+		fprintf(fp, "%lld\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\n", ps[i].id, ps[i].mass, ps[i].pos.x, ps[i].dens, ps[i].eng, ps[i].pres,
+				ps[i].acc.x, ps[i].eng_dot, ps[i].vel.x, ps[i].smth, ps[i].mu, ps[i].temp, ps[i].NUMDENS, ps[i].abundances[0], ps[i].abundances[5]);
 	}
 	Domain domain;
 	domain.min.x = xmin;
@@ -854,8 +856,8 @@ int main() {
 			for (int i = 0; i < ps.size(); i++) {
 //				std::cout << ps[i].pos.x << " "<< ps[i].dens<<std::endl;
 
-				fprintf(fp, "%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\n", ps[i].pos.x, ps[i].dens, ps[i].eng, ps[i].pres, ps[i].acc.x, ps[i].eng_dot,
-						ps[i].vel.x * PARAM::SVel / 1e5, ps[i].smth, ps[i].mu, log10(ps[i].temp), log10(ps[i].NUMDENS), log10(ps[i].abundances[0]), log10(ps[i].abundances[5]));
+				fprintf(fp, "%lld\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\n", ps[i].id, ps[i].mass, ps[i].pos.x, ps[i].dens, ps[i].eng, ps[i].pres,
+						ps[i].acc.x, ps[i].eng_dot, ps[i].vel.x, ps[i].smth, ps[i].mu, ps[i].temp, ps[i].NUMDENS, ps[i].abundances[0], ps[i].abundances[5]);
 			}
 		}
 	}
