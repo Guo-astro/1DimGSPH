@@ -399,7 +399,7 @@ void calc_force_G(Particles &ps, long nparts, const double &glb_dt) {
 
 			}
 		}
-		ps[i].acc += 2.5 * getPoly53Phi_dash(sqrt(ps[i].pos.x * ps[i].pos.x)) * ps[i].pos.x / sqrt(ps[i].pos.x * ps[i].pos.x);
+		ps[i].acc +=   getPoly53Phi_dash(sqrt(ps[i].pos.x * ps[i].pos.x)) * ps[i].pos.x / sqrt(ps[i].pos.x * ps[i].pos.x);
 	}
 
 }
@@ -756,7 +756,7 @@ void evolve_abundance(Particle &hydro, const double oneDynTimeStep) {
 }
 int main() {
 	Particles ps;
-
+#ifndef RESTART
 	double xmin = -PARAM::xi + 0.1;
 	double xmax = PARAM::xi - 0.1;
 	double domain_len = xmax - xmin;
@@ -790,6 +790,32 @@ int main() {
 		ps[i].smth = ps[i].mass / ps[i].dens;
 
 	}
+#endif
+
+
+
+#ifdef RESTART
+	int nparts = 200;
+		double xmin = -PARAM::xi;
+		double xmax = PARAM::xi;
+		char str[80];
+		float f;
+		FILE * pFile;
+		pFile = fopen("result/20000.dat", "r");
+
+		for (int i = 0; i < nparts; i++) {
+			Particle pi;
+
+			fscanf(pFile, "%lld\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\n", &pi.id, &pi.mass, &pi.pos.x, &pi.dens, &pi.eng, &pi.pres, &pi.acc.x,
+					&pi.eng_dot, &pi.vel.x, &pi.smth, &pi.mu, &pi.temp, &pi.NUMDENS, &pi.abundances[0], &pi.abundances[5]);
+			pi.vel.x = 0.0;
+			pi.TYPE = TYPE_FLUID;
+			ps.push_back(pi);
+	//		cout << pi.eng << endl;
+		}
+#endif
+
+
 	char filename[256];
 	sprintf(filename, "result/init.dat", 0);
 	FILE* fp;
@@ -817,7 +843,7 @@ int main() {
 //	copyGhosts(domain, ps, nparts);
 
 	double passtime = 0.0;
-	for (int step = 1; step < 30001; step++) {
+	for (int step = 1; step < 20001; step++) {
 
 		passtime += glb_dt;
 		cout << "in main time passed:  " << passtime * PARAM::ST / PARAM::yr << " step: " << step << endl;
