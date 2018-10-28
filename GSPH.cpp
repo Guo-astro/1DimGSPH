@@ -5,8 +5,44 @@
 #include "kernel.h"
 #include "param.h"
 #include "heatingcooling.h"
+#include "polyEquationsSolver.h"
+
 #include <cmath>
 using namespace std;
+double passtime = -0.6;
+
+double getTidalForce(double z, double Xt, double Mbh) {
+	double res = -PARAM::G * Mbh * z / pow(Xt, 3);
+	return res;
+}
+
+double solveOrbit(double Rp, double Mbh, double time) {
+//			cout << time << endl;
+
+	double a = 0;
+	double b = 1;
+	double c = 0;
+	double d = 12. * Rp * Rp;
+	double e = -12 * Rp * sqrt(2 * PARAM::G * Mbh) * time;
+	double Xt = 0.0;
+	Cans res = equation4(a, b, c, d, e);
+	for (int j = 0; j < res.n; ++j) {
+		Cdouble rc = poly4(a, b, c, d, e, res.ans[j]);
+
+//		printf("Answer%d=(%f %f), Error when assigned to the equation=(%e %e)\n", j, res.ans[j].r, res.ans[j].i, rc.r, rc.i);
+		if (fabs(res.ans[j].r) > 0.0) {
+			Xt = res.ans[j].r * res.ans[j].r / (4. * Rp) + Rp;
+		}
+	}
+
+//	if (Xt < 1e-14) {
+//		cout << "The orbit has minus length!!!" << endl;
+//	}
+
+	return Xt;
+
+}
+
 double fRand_Double(double fMin, double fMax) {
 	double f = (double) rand() / RAND_MAX;
 	return fMin + f * (fMax - fMin);
@@ -22,6 +58,8 @@ struct Particle {
 	F64vec pos;
 	F64vec vel;
 	F64vec acc;
+	F64vec accTidal;
+
 	F64vec gradV;
 	F64vec graddens;
 	F64vec gradpres;
@@ -203,7 +241,6 @@ void copyGhosts(const Domain &d, Particles &ps, long nparts) {
 		if (diffmax < srch * ps[i].smth && diffmax > 0.0) {
 			Particle ghost;
 			ghost.pos.x = _maxx + diffmax;
-
 
 			ghost.acc = ps[i].acc;
 			ghost.mass = ps[i].mass;
@@ -444,6 +481,12 @@ void calc_force_G(Particles &ps, long nparts, const double &glb_dt) {
 
 			}
 		}
+
+		double Mbh = 1e6;
+		double Xt = solveOrbit(1.0, Mbh, passtime);
+//		cout<<Xt<<endl;
+		double accBH =getTidalForce(ps[i].pos.x, Xt, Mbh);
+		ps[i].accTidal.x=accBH;
 	}
 
 }
@@ -533,25 +576,15 @@ void FinalKick(Particles &ps, double dt, long nparts) {
 		if (ps[i].id > 1000) {
 			continue;
 		}
-		ps[i].vel_half = ps[i].vel + .5 * dt * ps[i].acc;
-		ps[i].vel = ps[i].vel + dt * ps[i].acc;
+		ps[i].vel_half = ps[i].vel + .5 * dt * (ps[i].acc+ps[i].accTidal);
+		ps[i].vel = ps[i].vel + dt * (ps[i].acc+ps[i].accTidal);
 		ps[i].pos += ps[i].vel * dt;
 		ps[i].eng += dt * ps[i].eng_dot;
 		ps[i].temp = 1.4 * PARAM::PROTONMASS_CGS * ps[i].pres * PARAM::SEng_per_Mass / (ps[i].dens * PARAM::KBOLTZ_cgs * (1.1 + PARAM::i_abundance_e - PARAM::i_abundance_H2));
 		ps[i].NUMDENS = ps[i].dens * PARAM::SMassDens / (ps[i].mu * PARAM::PROTONMASS);
 
 //		evolve_abundance(ps[i], dt);
-		if (ps[i].pos.x != ps[i].pos.x) {
-			cout << "nan occured in finalk kick!" << endl;
-		}
 
-		if (ps[i].pos.x == 0 || ps[i].pos.x < 1e-5) {
-			cout << "final kick!!" << ps[i].pos.x << endl;
-
-//			ps[i].pos.x = ps[i].pos.x + 1.e-4;
-			cout << ps[i].eng << endl;
-
-		}
 #ifdef ENERGY_GUARD
 		if (ps[i].eng <= 0.0) {
 			ps[i].eng -= dt * ps[i].eng_dot;
@@ -822,6 +855,7 @@ void evolve_abundance(Particle &hydro, const double oneDynTimeStep) {
 
 	}
 }
+
 int main() {
 //
 //	double xmin = 0;
@@ -900,13 +934,13 @@ int main() {
 //	}
 
 	Particles ps;
-	int nparts = 40;
+	int nparts = 200;
 	double xmin = -PARAM::xi;
 	double xmax = PARAM::xi;
 	char str[80];
 	float f;
 	FILE * pFile;
-	pFile = fopen("/Users/guo/Research/9000.dat", "r");
+	pFile = fopen("/Users/guo/Research/20000.dat", "r");
 
 	for (int i = 0; i < nparts; i++) {
 		Particle pi;
@@ -946,17 +980,19 @@ int main() {
 	}
 
 	calc_presure(ps, nparts, glb_dt);
+	passtime += glb_dt;
+
 	calc_force_G(ps, nparts, glb_dt);
 //	copyGhosts(domain, ps, nparts);
 
-	double passtime = 0.0;
-	for (int step = 0; step < 100; step++) {
+	for (int step = 0; step <500; step++) {
+
 		char filename[256];
 		sprintf(filename, "result/%04d.dat", step);
 		FILE* fp;
 		fp = fopen(filename, "w");
-		passtime += glb_dt;
-		cout << "in main time passed:  " << passtime * PARAM::ST / PARAM::yr << " step: " << step << endl;
+
+		cout << "in main time passed:  " << passtime  << " step: " << step << endl;
 
 //		nparts = ps.size();
 //		InitialKick(ps, glb_dt, nparts);
@@ -968,6 +1004,8 @@ int main() {
 			calc_density(ps, nparts);
 		}
 		calc_presure(ps, nparts, glb_dt);
+		passtime += glb_dt;
+
 		calc_force_G(ps, nparts, glb_dt);
 		FinalKick(ps, glb_dt, nparts);
 		for (int i = 0; i < 10; i++) {
@@ -980,7 +1018,7 @@ int main() {
 			//				std::cout << ps[i].pos.x << " "<< ps[i].dens<<std::endl;
 
 			fprintf(fp, "%lld\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\n", ps[i].id, ps[i].mass, ps[i].pos.x, ps[i].dens, ps[i].eng, ps[i].pres,
-					ps[i].acc.x, ps[i].eng_dot, ps[i].vel.x, ps[i].smth, ps[i].mu, ps[i].temp, ps[i].NUMDENS, ps[i].abundances[0], ps[i].abundances[5]);
+					ps[i].accTidal.x, ps[i].eng_dot, ps[i].vel.x, ps[i].smth, ps[i].mu, ps[i].temp, ps[i].NUMDENS, ps[i].abundances[0], ps[i].abundances[5]);
 		}
 	}
 
