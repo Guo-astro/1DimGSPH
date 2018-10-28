@@ -154,13 +154,6 @@ void calc_presure(Particles &ps, long nparts, double &glb_dt) {
 		double vel_crit = 0.3 * fabs(ps[i].pos.x) / sqrt(ps[i].vel * ps[i].vel);
 		glb_dt = fmin(glb_dt, ps[i].dt);
 		glb_dt = fmin(glb_dt, vel_crit);
-		if (glb_dt < 1e-7) {
-			cout << "too small dt" << glb_dt << " " << ps[i].pos.x << " " << ps[i].smth << " " << ps[i].id << endl;
-//			ps[i].smth = 1e-3;z
-//			while (true) {
-//			}
-//			glb_dt = 1e-9;
-		}
 //
 //		}
 
@@ -406,7 +399,7 @@ void calc_force_G(Particles &ps, long nparts, const double &glb_dt) {
 
 			}
 		}
-		ps[i].acc += 1.25 * getPoly53Phi_dash(sqrt(ps[i].pos.x * ps[i].pos.x)) * ps[i].pos.x / sqrt(ps[i].pos.x * ps[i].pos.x);
+		ps[i].acc += 2.5 * getPoly53Phi_dash(sqrt(ps[i].pos.x * ps[i].pos.x)) * ps[i].pos.x / sqrt(ps[i].pos.x * ps[i].pos.x);
 	}
 
 }
@@ -771,7 +764,7 @@ int main() {
 	int STEP_LIMIT = 0;
 	int id = 0;
 	STEP_LIMIT = 90;
-	nparts = 40;
+	nparts = 200;
 	double dx = (xmax - xmin) / nparts;
 	double totMass = 0;
 	std::cout << xmax << std::endl;
@@ -824,7 +817,7 @@ int main() {
 //	copyGhosts(domain, ps, nparts);
 
 	double passtime = 0.0;
-	for (int step = 1; step < 10000; step++) {
+	for (int step = 1; step < 30001; step++) {
 
 		passtime += glb_dt;
 		cout << "in main time passed:  " << passtime * PARAM::ST / PARAM::yr << " step: " << step << endl;
