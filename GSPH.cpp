@@ -805,96 +805,100 @@ void evolve_abundance(Particle &hydro, const double oneDynTimeStep) {
 	}
 }
 int main() {
+//
+//	double xmin = 0;
+//	double xmax = 0.8;
+//	double domain_len = xmax - xmin;
+//	int nparts = 0;
+//	int STEP_LIMIT = 0;
+//	int id = 0;
+//	double xmid = .5 * domain_len;
+//	int npartsl = 200;
+//	int npartsr = 200;
+//	nparts = npartsl + npartsr;
+//	double dxl = xmid / npartsl;
+//	double dxr = xmid / npartsr;
+//	cout << "in main dxl: " << dxl << endl;
+//
+//	for (F64 x = xmin + .25 * dxr; x < xmax; x += dxr) {
+//		id++;
+//		Particle pi;
+//		pi.pos = x;
+//		pi.id = id;
+//
+//		pi.vel = -404.40047;
+//
+//		double mu = 1.4;
+//		double mu_new = 1.4;
+//		const F64 T = 8491.0;
+//		const F64 n_H = 0.1;
+//		const F64 x_e = 0.03;
+//		const F64 n_H2 = 1e-7;
+//		const F64 x_2 = n_H2 / n_H;
+//		F64 NUMDENS_CGS = 0;
+//		for (int i = 0; i < 100; i++) {
+//			mu = mu_new;
+//			pi.dens = mu * n_H * PARAM::PROTONMASS_CGS / PARAM::SMassDens;
+//			NUMDENS_CGS = pi.dens * PARAM::SMassDens / (mu * PARAM::PROTONMASS);
+//
+//			pi.abundances[0] = fitAB_E(NUMDENS_CGS);
+//			pi.abundances[1] = fitAB_HI(NUMDENS_CGS);
+//			pi.abundances[2] = PARAM::i_abundance_HeI;
+//			pi.abundances[3] = PARAM::i_abundance_OI;
+//			pi.abundances[4] = PARAM::i_abundance_CI;
+//			pi.abundances[5] = fitAB_H2(NUMDENS_CGS);
+//			pi.abundances[6] = fitAB_CO(NUMDENS_CGS);
+//			pi.abundances[7] = fmax(1. - 2. * pi.abundances[5] - pi.abundances[1], 0);
+//			pi.abundances[8] = fmax(pi.abundances[0] - pi.abundances[7] - PARAM::i_abundance_Si, 0);
+//			pi.abundances[9] = PARAM::i_abundance_Fe;
+//			pi.abundances[10] = PARAM::i_abundance_Si;
+//			mu_new = pi.abundances[1] + pi.abundances[7] + 2.0 * pi.abundances[5] + 4.0 * pi.abundances[2];
+//			mu_new /= (pi.abundances[1] + pi.abundances[7] + pi.abundances[5] + pi.abundances[2] + pi.abundances[0]);
+//			if (fabs(mu - mu_new) < 1e-3) {
+//				break;
+//			}
+//		}
+//		//mu= 1.21676
+//		//n_H=0.1
+//		//we want PARAM::SMassDens to be 2.03517e-25!
+//		cout << "we want PARAM::SMassDens to be : " << mu * n_H * PARAM::PROTONMASS_CGS << endl;
+//		//therefore
+//		cout << " Therefore the SM: " << PARAM::SL * PARAM::SL * PARAM::SL * mu * n_H * PARAM::PROTONMASS_CGS / PARAM::M_SUN_cgs << endl;
+//		//
+//		//		pi.NUMDENS = NUMDENS;
+//		pi.mass = pi.dens * dxr;
+//		pi.pres = (1.1 + pi.abundances[0] - pi.abundances[5]) * NUMDENS_CGS * T * PARAM::KBOLTZ_CGS / PARAM::SPres;
+//
+//		pi.eng = pi.pres / ((PARAM::GAMMA - 1.0) * pi.dens);
+//
+//		F64 tem = mu * PARAM::PROTONMASS_CGS * pi.pres * PARAM::SEng_per_Mass / (pi.dens * PARAM::KBOLTZ_cgs * (1.1 + PARAM::i_abundance_e - PARAM::i_abundance_H2));
+//		pi.mu = mu;
+//		pi.NUMDENS = NUMDENS_CGS;
+//		pi.temp = tem;
+//		pi.smth = pi.mass / pi.dens;
+//		pi.TYPE = TYPE_FLUID;
+//		ps.push_back(pi);
+//
+//	}
+
 	Particles ps;
-
-	double xmin = 0;
-	double xmax = 0.8;
-	double domain_len = xmax - xmin;
-	int nparts = 0;
-	int STEP_LIMIT = 0;
-	int id = 0;
-	double xmid = .5 * domain_len;
-	int npartsl = 200;
-	int npartsr = 200;
-	nparts = npartsl + npartsr;
-	double dxl = xmid / npartsl;
-	double dxr = xmid / npartsr;
-	cout << "in main dxl: " << dxl << endl;
-
-	for (F64 x = xmin + .25 * dxr; x < xmax; x += dxr) {
-		id++;
-		Particle pi;
-		pi.pos = x;
-		pi.id = id;
-
-		pi.vel = -404.40047;
-
-		double mu = 1.4;
-		double mu_new = 1.4;
-		const F64 T = 8491.0;
-		const F64 n_H = 0.1;
-		const F64 x_e = 0.03;
-		const F64 n_H2 = 1e-7;
-		const F64 x_2 = n_H2 / n_H;
-		F64 NUMDENS_CGS = 0;
-		for (int i = 0; i < 100; i++) {
-			mu = mu_new;
-			pi.dens = mu * n_H * PARAM::PROTONMASS_CGS / PARAM::SMassDens;
-			NUMDENS_CGS = pi.dens * PARAM::SMassDens / (mu * PARAM::PROTONMASS);
-
-			pi.abundances[0] = fitAB_E(NUMDENS_CGS);
-			pi.abundances[1] = fitAB_HI(NUMDENS_CGS);
-			pi.abundances[2] = PARAM::i_abundance_HeI;
-			pi.abundances[3] = PARAM::i_abundance_OI;
-			pi.abundances[4] = PARAM::i_abundance_CI;
-			pi.abundances[5] = fitAB_H2(NUMDENS_CGS);
-			pi.abundances[6] = fitAB_CO(NUMDENS_CGS);
-			pi.abundances[7] = fmax(1. - 2. * pi.abundances[5] - pi.abundances[1], 0);
-			pi.abundances[8] = fmax(pi.abundances[0] - pi.abundances[7] - PARAM::i_abundance_Si, 0);
-			pi.abundances[9] = PARAM::i_abundance_Fe;
-			pi.abundances[10] = PARAM::i_abundance_Si;
-			mu_new = pi.abundances[1] + pi.abundances[7] + 2.0 * pi.abundances[5] + 4.0 * pi.abundances[2];
-			mu_new /= (pi.abundances[1] + pi.abundances[7] + pi.abundances[5] + pi.abundances[2] + pi.abundances[0]);
-			if (fabs(mu - mu_new) < 1e-3) {
-				break;
-			}
-		}
-		//mu= 1.21676
-		//n_H=0.1
-		//we want PARAM::SMassDens to be 2.03517e-25!
-		cout << "we want PARAM::SMassDens to be : " << mu * n_H * PARAM::PROTONMASS_CGS << endl;
-		//therefore
-		cout << " Therefore the SM: " << PARAM::SL * PARAM::SL * PARAM::SL * mu * n_H * PARAM::PROTONMASS_CGS / PARAM::M_SUN_cgs << endl;
-		//
-		//		pi.NUMDENS = NUMDENS;
-		pi.mass = pi.dens * dxr;
-		pi.pres = (1.1 + pi.abundances[0] - pi.abundances[5]) * NUMDENS_CGS * T * PARAM::KBOLTZ_CGS / PARAM::SPres;
-
-		pi.eng = pi.pres / ((PARAM::GAMMA - 1.0) * pi.dens);
-
-		F64 tem = mu * PARAM::PROTONMASS_CGS * pi.pres * PARAM::SEng_per_Mass / (pi.dens * PARAM::KBOLTZ_cgs * (1.1 + PARAM::i_abundance_e - PARAM::i_abundance_H2));
-		pi.mu = mu;
-		pi.NUMDENS = NUMDENS_CGS;
-		pi.temp = tem;
-		pi.smth = pi.mass / pi.dens;
-		pi.TYPE = TYPE_FLUID;
-		ps.push_back(pi);
-
-	}
+	int nparts = 100;
+	double xmin = -PARAM::xi;
+	double xmax = PARAM::xi;
 	char str[80];
 	float f;
 	FILE * pFile;
-	pFile = fopen("result/10000.dat", "r");
+	pFile = fopen("/Users/guo/Research/9000.dat", "r");
 
 	for (int i = 0; i < nparts; i++) {
 		Particle pi;
 
-		fscanf(pFile, "%lld\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\n",&pi.id,&pi.mass, &pi.pos.x, &pi.dens, &pi.eng, &pi.pres, &pi.acc.x, &pi.eng_dot,
-				&pi.vel.x, &pi.smth, &pi.mu, &pi.temp, &pi.NUMDENS, &pi.abundances[0], &pi.abundances[5]);
+		fscanf(pFile, "%lld\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\n", &pi.id, &pi.mass, &pi.pos.x, &pi.dens, &pi.eng, &pi.pres, &pi.acc.x,
+				&pi.eng_dot, &pi.vel.x, &pi.smth, &pi.mu, &pi.temp, &pi.NUMDENS, &pi.abundances[0], &pi.abundances[5]);
 
 		pi.TYPE = TYPE_FLUID;
 		ps.push_back(pi);
-        cout<<pi.mass <<endl;
+//		cout << pi.eng << endl;
 	}
 	Domain domain;
 	domain.min.x = xmin;
@@ -914,7 +918,7 @@ int main() {
 	copyGhosts(domain, ps, nparts);
 
 	double passtime = 0.0;
-	for (int step = 0; step < 794; step++) {
+	for (int step = 0; step < 0; step++) {
 		char filename[256];
 		sprintf(filename, "result/%04d.dat", step);
 		FILE* fp;

@@ -1,6 +1,6 @@
 PS_PAH = ../
 
-CC = /usr/local/bin/g++-8
+CC = g++
 
 #CC = mpicxx
 #CFLAGS = -g -ffast-math -funroll-loops -DDEBUG
