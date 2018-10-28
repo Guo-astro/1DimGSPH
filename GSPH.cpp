@@ -173,19 +173,15 @@ void copyGhosts(const Domain &d, Particles &ps, long nparts) {
 	for (int i = 0; i < ps.size(); i++) {
 
 		double partsx = ps[i].pos.x;
-		double _minx = 0.0;
+		double _minx = d.min.x;
+		double _maxx = d.max.x;
+
 		double diff = partsx - _minx;
+		double diffmax = _maxx - partsx;
+
 		if (diff < srch * ps[i].smth && diff > 0.0) {
 			Particle ghost;
 			ghost.pos.x = _minx - diff;
-
-			if (ps[i].pos.x == 0 || ps[i].pos.x < 1e-5) {
-				cout << "cp ghost ptcl in < boundary domain!!" << ps[i].pos.x << endl;
-
-//				ghost.pos.x = d.min.x - diff - 1e-4;
-				cout << ps[i].eng << endl;
-
-			}
 
 			ghost.acc = ps[i].acc;
 			ghost.mass = ps[i].mass;
@@ -198,6 +194,28 @@ void copyGhosts(const Domain &d, Particles &ps, long nparts) {
 			ghost.temp = ps[i].temp;
 			ghost.NUMDENS = ps[i].NUMDENS;
 //			cout << ghost.id << endl;
+
+			ghost.TYPE = TYPE_GHOST;
+			ps.push_back(ghost);
+
+		}
+
+		if (diffmax < srch * ps[i].smth && diffmax > 0.0) {
+			Particle ghost;
+			ghost.pos.x = _maxx + diffmax;
+
+
+			ghost.acc = ps[i].acc;
+			ghost.mass = ps[i].mass;
+			ghost.dens = ps[i].dens;
+			ghost.pres = ps[i].pres;
+			ghost.eng = ps[i].eng;
+			ghost.smth = ps[i].smth;
+			ghost.vel = -ps[i].vel;
+			ghost.id = ps[i].id + nparts + 1000;
+			ghost.temp = ps[i].temp;
+			ghost.NUMDENS = ps[i].NUMDENS;
+			//			cout << ghost.id << endl;
 
 			ghost.TYPE = TYPE_GHOST;
 			ps.push_back(ghost);
@@ -522,7 +540,7 @@ void FinalKick(Particles &ps, double dt, long nparts) {
 		ps[i].temp = 1.4 * PARAM::PROTONMASS_CGS * ps[i].pres * PARAM::SEng_per_Mass / (ps[i].dens * PARAM::KBOLTZ_cgs * (1.1 + PARAM::i_abundance_e - PARAM::i_abundance_H2));
 		ps[i].NUMDENS = ps[i].dens * PARAM::SMassDens / (ps[i].mu * PARAM::PROTONMASS);
 
-		evolve_abundance(ps[i], dt);
+//		evolve_abundance(ps[i], dt);
 		if (ps[i].pos.x != ps[i].pos.x) {
 			cout << "nan occured in finalk kick!" << endl;
 		}
@@ -882,7 +900,7 @@ int main() {
 //	}
 
 	Particles ps;
-	int nparts = 100;
+	int nparts = 40;
 	double xmin = -PARAM::xi;
 	double xmax = PARAM::xi;
 	char str[80];
@@ -895,11 +913,22 @@ int main() {
 
 		fscanf(pFile, "%lld\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\n", &pi.id, &pi.mass, &pi.pos.x, &pi.dens, &pi.eng, &pi.pres, &pi.acc.x,
 				&pi.eng_dot, &pi.vel.x, &pi.smth, &pi.mu, &pi.temp, &pi.NUMDENS, &pi.abundances[0], &pi.abundances[5]);
-
+		pi.vel.x = 0.0;
 		pi.TYPE = TYPE_FLUID;
 		ps.push_back(pi);
 //		cout << pi.eng << endl;
 	}
+
+	Domain domain;
+	domain.min.x = xmin;
+	domain.max.x = xmax;
+	domain.domain_len.x = xmax - xmin;
+	double glb_dt = 1e30;
+	for (int i = 0; i < 10; i++) {
+		calc_density(ps, nparts);
+	}
+
+//	copyGhosts(domain, ps, nparts);
 
 	char filename[256];
 	sprintf(filename, "result/init.dat", 0);
@@ -912,25 +941,16 @@ int main() {
 		fprintf(fp, "%lld\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\n", ps[i].id, ps[i].mass, ps[i].pos.x, ps[i].dens, ps[i].eng, ps[i].pres,
 				ps[i].acc.x, ps[i].eng_dot, ps[i].vel.x, ps[i].smth, ps[i].mu, ps[i].temp, ps[i].NUMDENS, ps[i].abundances[0], ps[i].abundances[5]);
 	}
-	Domain domain;
-	domain.min.x = xmin;
-	domain.max.x = xmax;
-	domain.domain_len.x = xmax - xmin;
-	double glb_dt = 1e30;
 	for (int i = 0; i < 10; i++) {
 		calc_density(ps, nparts);
 	}
 
-	copyGhosts(domain, ps, nparts);
-	for (int i = 0; i < 10; i++) {
-		calc_density(ps, nparts);
-	}
 	calc_presure(ps, nparts, glb_dt);
 	calc_force_G(ps, nparts, glb_dt);
-	copyGhosts(domain, ps, nparts);
+//	copyGhosts(domain, ps, nparts);
 
 	double passtime = 0.0;
-	for (int step = 0; step < 0; step++) {
+	for (int step = 0; step < 100; step++) {
 		char filename[256];
 		sprintf(filename, "result/%04d.dat", step);
 		FILE* fp;
@@ -954,7 +974,7 @@ int main() {
 
 			calc_density(ps, nparts);
 		}
-		copyGhosts(domain, ps, nparts);
+//		copyGhosts(domain, ps, nparts);
 		nparts = ps.size();
 		for (int i = 0; i < ps.size(); i++) {
 			//				std::cout << ps[i].pos.x << " "<< ps[i].dens<<std::endl;
