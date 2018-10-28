@@ -889,13 +889,12 @@ int main() {
 	for (int i = 0; i < nparts; i++) {
 		Particle pi;
 
-		fscanf(pFile, "%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf", &pi.pos.x, &pi.dens, &pi.eng,
-				&pi.pres, &pi.acc.x, &pi.eng_dot, &pi.vel.x * PARAM::SVel / 1e5, &pi.smth, &pi.mu,&pi.temp, &pi.NUMDENS, &pi.abundances[0],
-				&pi.abundances[5]);
+		fscanf(pFile, "%lld\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\n",&pi.id,&pi.mass, &pi.pos.x, &pi.dens, &pi.eng, &pi.pres, &pi.acc.x, &pi.eng_dot,
+				&pi.vel.x, &pi.smth, &pi.mu, &pi.temp, &pi.NUMDENS, &pi.abundances[0], &pi.abundances[5]);
 
 		pi.TYPE = TYPE_FLUID;
 		ps.push_back(pi);
-
+        cout<<pi.mass <<endl;
 	}
 	Domain domain;
 	domain.min.x = xmin;
@@ -941,10 +940,11 @@ int main() {
 		}
 		copyGhosts(domain, ps, nparts);
 		nparts = ps.size();
-		for (int i = 0; i < nparts; i++) {
-			fprintf(fp, "%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\n", ps[i].pos.x * PARAM::SL / PARAM::PC_CGS, ps[i].dens, ps[i].eng, ps[i].pres,
-					ps[i].acc.x, ps[i].eng_dot, ps[i].vel.x * PARAM::SVel / 1e5, ps[i].smth, ps[i].mu, log10(ps[i].temp), log10(ps[i].NUMDENS), log10(ps[i].abundances[0]),
-					log10(ps[i].abundances[5]));
+		for (int i = 0; i < ps.size(); i++) {
+			//				std::cout << ps[i].pos.x << " "<< ps[i].dens<<std::endl;
+
+			fprintf(fp, "%lld\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\n", ps[i].id, ps[i].mass, ps[i].pos.x, ps[i].dens, ps[i].eng, ps[i].pres,
+					ps[i].acc.x, ps[i].eng_dot, ps[i].vel.x, ps[i].smth, ps[i].mu, ps[i].temp, ps[i].NUMDENS, ps[i].abundances[0], ps[i].abundances[5]);
 		}
 	}
 
