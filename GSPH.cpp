@@ -150,7 +150,7 @@ void calc_presure(Particles &ps, long nparts, double &glb_dt) {
 		}
 		ps[i].pres = .5 * pow(ps[i].dens, 2);
 		ps[i].snds = sqrt(GAMMA * ps[i].pres / ps[i].dens);
-		ps[i].dt = 0.2 * ps[i].smth / ps[i].snds;
+		ps[i].dt = 0.4 * ps[i].smth / ps[i].snds;
 		double vel_crit = 0.3 * fabs(ps[i].pos.x) / sqrt(ps[i].vel * ps[i].vel);
 		glb_dt = fmin(glb_dt, ps[i].dt);
 		glb_dt = fmin(glb_dt, vel_crit);
@@ -406,7 +406,7 @@ void calc_force_G(Particles &ps, long nparts, const double &glb_dt) {
 
 			}
 		}
-		ps[i].acc -= 2.5 * getPoly53Phi_dash(ps[i].pos.x);
+		ps[i].acc += 1.25*getPoly53Phi_dash(sqrt(ps[i].pos.x * ps[i].pos.x)) * ps[i].pos.x / sqrt(ps[i].pos.x * ps[i].pos.x);
 	}
 
 }
@@ -497,23 +497,6 @@ void FinalKick(Particles &ps, double dt, long nparts) {
 			continue;
 		}
 		ps[i].pos += .5 * ps[i].acc * dt * dt;
-		if (ps[i].pos.x != ps[i].pos.x) {
-			cout << "nan occured in finalk kick!" << endl;
-		}
-
-		if (ps[i].pos.x == 0 || ps[i].pos.x < 1e-5) {
-			cout << "final kick!!" << ps[i].pos.x << endl;
-
-//			ps[i].pos.x = ps[i].pos.x + 1.e-4;
-			cout << ps[i].eng << endl;
-
-		}
-#ifdef ENERGY_GUARD
-		if (ps[i].eng <= 0.0) {
-			ps[i].eng -= dt * ps[i].eng_dot;
-			ps[i].eng = .5*ps[i].eng;
-		}
-#endif
 	}
 
 }
@@ -781,23 +764,25 @@ void evolve_abundance(Particle &hydro, const double oneDynTimeStep) {
 int main() {
 	Particles ps;
 
-	double xmin = 0.01;
-	double xmax = PARAM::xi - 0.5;
+	double xmin = -PARAM::xi + 0.1;
+	double xmax = PARAM::xi - 0.1;
 	double domain_len = xmax - xmin;
 	int nparts = 0;
 	int STEP_LIMIT = 0;
 	int id = 0;
 	STEP_LIMIT = 90;
-	nparts = 100;
+	nparts = 40;
 	double dx = (xmax - xmin) / nparts;
 	double totMass = 0;
+	std::cout << xmax << std::endl;
+
 	for (F64 x = xmin; x < xmax; x += dx) {
 		id++;
 		Particle pi;
 		pi.pos = x;
 		pi.id = id;
 		pi.vel = 0.0;
-		pi.dens = getPoly53Dens(x);
+		pi.dens = getPoly53Dens(sqrt(x * x));
 		totMass += pi.dens * dx;
 		pi.pres = pow(pi.dens, PARAM::GAMMA);
 
@@ -812,24 +797,21 @@ int main() {
 		ps[i].smth = ps[i].mass / ps[i].dens;
 
 	}
+	char filename[256];
+	sprintf(filename, "result/init.dat", 0);
+	FILE* fp;
+	fp = fopen(filename, "w");
 
+	for (int i = 0; i < ps.size(); i++) {
+		fprintf(fp, "%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\n", ps[i].pos.x, ps[i].dens, ps[i].eng, ps[i].pres, ps[i].acc.x, ps[i].eng_dot,
+				ps[i].vel.x * PARAM::SVel / 1e5, ps[i].smth, ps[i].mu, log10(ps[i].temp), log10(ps[i].NUMDENS), log10(ps[i].abundances[0]), log10(ps[i].abundances[5]));
+	}
 	Domain domain;
 	domain.min.x = xmin;
 	domain.max.x = xmax;
 	domain.domain_len.x = xmax - xmin;
 
-	char filename[256];
-	sprintf(filename, "result/%04d.dat", 0);
-	FILE* fp;
-	fp = fopen(filename, "w");
-	for (int i = 0; i < nparts; i++) {
-		fprintf(fp, "%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\n", ps[i].pos.x, ps[i].dens, ps[i].eng, ps[i].pres, ps[i].acc.x, ps[i].eng_dot,
-				ps[i].vel.x * PARAM::SVel / 1e5, ps[i].smth, ps[i].mu, log10(ps[i].temp), log10(ps[i].NUMDENS), log10(ps[i].abundances[0]), log10(ps[i].abundances[5]));
-	}
 	double glb_dt = 1e30;
-	for (int i = 0; i < 10; i++) {
-		calc_density(ps, nparts);
-	}
 
 //	copyGhosts(domain, ps, nparts);
 	for (int i = 0; i < 10; i++) {
@@ -840,11 +822,8 @@ int main() {
 //	copyGhosts(domain, ps, nparts);
 
 	double passtime = 0.0;
-	for (int step = 0; step < 10; step++) {
-		char filename[256];
-		sprintf(filename, "result/%04d.dat", step);
-		FILE* fp;
-		fp = fopen(filename, "w");
+	for (int step = 1; step < 10000; step++) {
+
 		passtime += glb_dt;
 		cout << "in main time passed:  " << passtime * PARAM::ST / PARAM::yr << " step: " << step << endl;
 
@@ -866,9 +845,16 @@ int main() {
 		}
 //		copyGhosts(domain, ps, nparts);
 		nparts = ps.size();
-		if (step % 10 == 0) {
-			for (int i = 0; i < nparts; i++) {
-				fprintf(fp, "%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\n", ps[i].pos.x, ps[i].dens, ps[i].eng, ps[i].pres, ps[i].acc.x, ps[i].eng_dot,
+
+		if (step % 1000 == 0) {
+			char filename[256];
+			sprintf(filename, "result/%04d.dat", step);
+			FILE* fp;
+			fp = fopen(filename, "w");
+			for (int i = 0; i < ps.size(); i++) {
+//				std::cout << ps[i].pos.x << " "<< ps[i].dens<<std::endl;
+
+				fprintf(fp, "%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\n", ps[i].pos.x, ps[i].dens, ps[i].eng, ps[i].pres, ps[i].acc.x, ps[i].eng_dot,
 						ps[i].vel.x * PARAM::SVel / 1e5, ps[i].smth, ps[i].mu, log10(ps[i].temp), log10(ps[i].NUMDENS), log10(ps[i].abundances[0]), log10(ps[i].abundances[5]));
 			}
 		}
