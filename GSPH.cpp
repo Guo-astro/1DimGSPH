@@ -148,7 +148,7 @@ void calc_presure(Particles &ps, long nparts, double &glb_dt) {
 		if (ps[i].id > 1000) {
 			continue;
 		}
-		ps[i].pres = .5*pow(ps[i].dens ,2);
+		ps[i].pres = .5 * pow(ps[i].dens, 2);
 		ps[i].snds = sqrt(GAMMA * ps[i].pres / ps[i].dens);
 		ps[i].dt = 0.2 * ps[i].smth / ps[i].snds;
 		double vel_crit = 0.3 * fabs(ps[i].pos.x) / sqrt(ps[i].vel * ps[i].vel);
@@ -400,16 +400,13 @@ void calc_force_G(Particles &ps, long nparts, const double &glb_dt) {
 				const F64 sj = nbrs[j].pos * eij;
 				const F64 dsij = si - sj;
 				F64vec vij = 0.0;
-				gradW_hsi = kernel.gradW(dr,  ps[i].smth);
-
+				gradW_hsi = kernel.gradW(dr, ps[i].smth);
 
 				ps[i].acc -= nbrs[j].mass * gradW_hsi;
 
-
-
 			}
 		}
-		ps[i].acc -= 2.5*getPoly53Phi_dash(ps[i].pos.x);
+		ps[i].acc -= 2.5 * getPoly53Phi_dash(ps[i].pos.x);
 	}
 
 }
@@ -499,7 +496,7 @@ void FinalKick(Particles &ps, double dt, long nparts) {
 		if (ps[i].id > 1000) {
 			continue;
 		}
-		ps[i].pos +=.5* ps[i].acc*dt * dt;
+		ps[i].pos += .5 * ps[i].acc * dt * dt;
 		if (ps[i].pos.x != ps[i].pos.x) {
 			cout << "nan occured in finalk kick!" << endl;
 		}
@@ -785,7 +782,7 @@ int main() {
 	Particles ps;
 
 	double xmin = 0.01;
-	double xmax = PARAM::xi -0.5;
+	double xmax = PARAM::xi - 0.5;
 	double domain_len = xmax - xmin;
 	int nparts = 0;
 	int STEP_LIMIT = 0;
@@ -826,9 +823,8 @@ int main() {
 	FILE* fp;
 	fp = fopen(filename, "w");
 	for (int i = 0; i < nparts; i++) {
-		fprintf(fp, "%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\n", ps[i].pos.x , ps[i].dens, ps[i].eng, ps[i].pres,
-				ps[i].acc.x, ps[i].eng_dot, ps[i].vel.x * PARAM::SVel / 1e5, ps[i].smth, ps[i].mu, log10(ps[i].temp), log10(ps[i].NUMDENS), log10(ps[i].abundances[0]),
-				log10(ps[i].abundances[5]));
+		fprintf(fp, "%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\n", ps[i].pos.x, ps[i].dens, ps[i].eng, ps[i].pres, ps[i].acc.x, ps[i].eng_dot,
+				ps[i].vel.x * PARAM::SVel / 1e5, ps[i].smth, ps[i].mu, log10(ps[i].temp), log10(ps[i].NUMDENS), log10(ps[i].abundances[0]), log10(ps[i].abundances[5]));
 	}
 	double glb_dt = 1e30;
 	for (int i = 0; i < 10; i++) {
@@ -870,10 +866,11 @@ int main() {
 		}
 //		copyGhosts(domain, ps, nparts);
 		nparts = ps.size();
-		for (int i = 0; i < nparts; i++) {
-			fprintf(fp, "%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\n", ps[i].pos.x , ps[i].dens, ps[i].eng, ps[i].pres,
-					ps[i].acc.x, ps[i].eng_dot, ps[i].vel.x * PARAM::SVel / 1e5, ps[i].smth, ps[i].mu, log10(ps[i].temp), log10(ps[i].NUMDENS), log10(ps[i].abundances[0]),
-					log10(ps[i].abundances[5]));
+		if (step % 10 == 0) {
+			for (int i = 0; i < nparts; i++) {
+				fprintf(fp, "%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\n", ps[i].pos.x, ps[i].dens, ps[i].eng, ps[i].pres, ps[i].acc.x, ps[i].eng_dot,
+						ps[i].vel.x * PARAM::SVel / 1e5, ps[i].smth, ps[i].mu, log10(ps[i].temp), log10(ps[i].NUMDENS), log10(ps[i].abundances[0]), log10(ps[i].abundances[5]));
+			}
 		}
 	}
 
