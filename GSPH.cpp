@@ -148,7 +148,7 @@ void calc_presure(Particles &ps, long nparts, double &glb_dt) {
 			continue;
 		}
 		ps[i].pres = ps[i].dens * ps[i].eng * (GAMMA - 1.0);
-		ps[i].snds = sqrt( GAMMA * ps[i].pres / ps[i].dens);
+		ps[i].snds = sqrt(GAMMA * ps[i].pres / ps[i].dens);
 		ps[i].dt = 0.2 * ps[i].smth / ps[i].snds;
 		double vel_crit = 0.3 * fabs(ps[i].pos.x) / sqrt(ps[i].vel * ps[i].vel);
 		glb_dt = fmin(glb_dt, ps[i].dt);
@@ -195,7 +195,7 @@ void copyGhosts(const Domain &d, Particles &ps, long nparts) {
 			ghost.smth = ps[i].smth;
 			ghost.vel = -ps[i].vel;
 			ghost.id = ps[i].id + nparts + 1000;
-			ghost.temp=ps[i].temp;
+			ghost.temp = ps[i].temp;
 			ghost.NUMDENS = ps[i].NUMDENS;
 //			cout << ghost.id << endl;
 
@@ -813,152 +813,6 @@ int main() {
 	int nparts = 0;
 	int STEP_LIMIT = 0;
 	int id = 0;
-#ifdef SodST
-	STEP_LIMIT = 80;
-	double xmid = .5 * domain_len;
-	int npartsl = 80;
-	int npartsr = 40;
-	nparts = npartsl + npartsr;
-	double dxl = xmid / npartsl;
-	double dxr = xmid / npartsr;
-	for (F64 x = xmin; x < xmin + xmid; x += dxl) {
-		id++;
-		Particle pi;
-		pi.pos = x+dxl*.5;
-		pi.id = id;
-		pi.vel = 0;
-		pi.dens = 1.0;
-		pi.mass = pi.dens * dxl;
-		pi.pres = 1.0;
-		pi.smth = pi.mass / pi.dens;
-		pi.eng = pi.pres / (pi.dens * (GAMMA - 1));
-		pi.TYPE = TYPE_FLUID;
-		ps.push_back(pi);
-
-	}
-	for (F64 x = xmin + xmid; x < xmax; x += dxr) {
-		id++;
-		Particle pi;
-		pi.pos = x+dxr*.5;
-		pi.id = id;
-		pi.vel = 0;
-		pi.dens = 0.5;
-		pi.mass = pi.dens * dxr;
-		pi.pres = 0.2;
-		pi.smth = pi.mass / pi.dens;
-		pi.eng = pi.pres / (pi.dens * (GAMMA - 1));
-		pi.TYPE = TYPE_FLUID;
-		ps.push_back(pi);
-
-	}
-#elif BLASTWAVE
-#ifdef I2000_SECOND_ORDER_RIEMMAN_SOLVER
-	STEP_LIMIT = 20;
-#else
-	STEP_LIMIT = 250;
-#endif
-	double xmid = .5 * domain_len;
-	int npartsl = 200;
-	int npartsr = 200;
-	nparts = npartsl + npartsr;
-	double dxl = xmid / npartsl;
-	double dxr = xmid / npartsr;
-	for (F64 x = xmin; x < xmin + xmid; x += dxl) {
-		id++;
-		Particle pi;
-		pi.pos = x+dxl*.5;
-		pi.id = id;
-		pi.vel = 0;
-		pi.dens = 1.0;
-		pi.mass = pi.dens * dxl;
-		pi.pres = 20.0;
-		pi.smth = pi.mass / pi.dens;
-		pi.eng = pi.pres / (pi.dens * (GAMMA - 1));
-		pi.TYPE = TYPE_FLUID;
-		ps.push_back(pi);
-
-	}
-	for (F64 x = xmin + xmid; x < xmax; x += dxr) {
-		id++;
-		Particle pi;
-		pi.pos = x+dxr*.5;
-		pi.id = id;
-		pi.vel = 0;
-		pi.dens =1.0;
-		pi.mass = pi.dens * dxr;
-		pi.pres =1.0;
-		pi.smth = pi.mass / pi.dens;
-		pi.eng = pi.pres / (pi.dens * (GAMMA - 1));
-		pi.TYPE = TYPE_FLUID;
-		ps.push_back(pi);
-
-	}
-
-#elif SJOGREEN
-#ifdef I2000_SECOND_ORDER_RIEMMAN_SOLVER
-	STEP_LIMIT = 20;
-#else
-	STEP_LIMIT = 250;
-#endif
-	double xmid = .5 * domain_len;
-	int npartsl = 200;
-	int npartsr = 200;
-	nparts = npartsl + npartsr;
-	double dxl = xmid / npartsl;
-	double dxr = xmid / npartsr;
-	for (F64 x = xmin; x < xmin + xmid; x += dxl) {
-		id++;
-		Particle pi;
-		pi.pos = x;
-		pi.id = id;
-		pi.vel = -2.0;
-		pi.dens = 1.0;
-		pi.mass = pi.dens * dxl;
-		pi.pres = 0.4;
-		pi.smth = pi.mass / pi.dens;
-		pi.eng = pi.pres / (pi.dens * (GAMMA - 1));
-		pi.TYPE = TYPE_FLUID;
-		ps.push_back(pi);
-
-	}
-	for (F64 x = xmin + xmid; x < xmax; x += dxr) {
-		id++;
-		Particle pi;
-		pi.pos = x;
-		pi.id = id;
-		pi.vel = 2.0;
-		pi.dens =1.0;
-		pi.mass = pi.dens * dxr;
-		pi.pres =0.4;
-		pi.smth = pi.mass / pi.dens;
-		pi.eng = pi.pres / (pi.dens * (GAMMA - 1));
-		pi.TYPE = TYPE_FLUID;
-		ps.push_back(pi);
-
-	}
-#endif
-#ifdef TRANSPORT
-	STEP_LIMIT =90;
-	xmin = -M_PI+0.2;
-	xmax =M_PI-0.2;
-	nparts = 100;
-	double dx =( xmax-xmin)/nparts;
-	for (F64 x = xmin; x < xmax; x += dx) {
-		id++;
-		Particle pi;
-		pi.pos = x;
-		pi.id = id;
-		pi.vel = 0.0;
-		pi.dens = 1.0 + cos(x);
-		pi.mass = pi.dens * dx;
-		pi.pres = 1.0;
-		pi.smth = pi.mass / pi.dens;
-		pi.eng = pi.pres / (pi.dens * (GAMMA - 1));
-		pi.TYPE = TYPE_FLUID;
-		ps.push_back(pi);
-
-	}
-#elif KI2000_W6_ADIA
 	double xmid = .5 * domain_len;
 	int npartsl = 200;
 	int npartsr = 200;
@@ -967,37 +821,13 @@ int main() {
 	double dxr = xmid / npartsr;
 	cout << "in main dxl: " << dxl << endl;
 
-	for (F64 x = xmin+.5*dxr; x < xmax; x += dxr) {
-		id++;
-		Particle pi;
-		pi.pos = x;
-		pi.id = id;
-		pi.vel = -60;
-		pi.dens =1.0;
-		pi.mass = pi.dens * dxr;
-		pi.pres =1.0;
-		pi.smth = pi.mass / pi.dens;
-		pi.eng = pi.pres / (pi.dens * (GAMMA - 1));
-		pi.TYPE = TYPE_FLUID;
-		ps.push_back(pi);
-
-	}
-#elif KI2000_W6_CHEM
-	double xmid = .5 * domain_len;
-	int npartsl = 200;
-	int npartsr = 200;
-	nparts = npartsl + npartsr;
-	double dxl = xmid / npartsl;
-	double dxr = xmid / npartsr;
-	cout << "in main dxl: " << dxl << endl;
-
-	for (F64 x = xmin+.25*dxr; x < xmax; x += dxr) {
+	for (F64 x = xmin + .25 * dxr; x < xmax; x += dxr) {
 		id++;
 		Particle pi;
 		pi.pos = x;
 		pi.id = id;
 
-		pi.vel =- 404.40047;
+		pi.vel = -404.40047;
 
 		double mu = 1.4;
 		double mu_new = 1.4;
@@ -1032,11 +862,11 @@ int main() {
 		//mu= 1.21676
 		//n_H=0.1
 		//we want PARAM::SMassDens to be 2.03517e-25!
-		cout<<"we want PARAM::SMassDens to be : "<<mu * n_H * PARAM::PROTONMASS_CGS <<endl;
+		cout << "we want PARAM::SMassDens to be : " << mu * n_H * PARAM::PROTONMASS_CGS << endl;
 		//therefore
-		cout<<" Therefore the SM: "<<PARAM::SL*PARAM::SL*PARAM::SL*mu * n_H * PARAM::PROTONMASS_CGS/PARAM:: M_SUN_cgs <<endl;
-//
-//		pi.NUMDENS = NUMDENS;
+		cout << " Therefore the SM: " << PARAM::SL * PARAM::SL * PARAM::SL * mu * n_H * PARAM::PROTONMASS_CGS / PARAM::M_SUN_cgs << endl;
+		//
+		//		pi.NUMDENS = NUMDENS;
 		pi.mass = pi.dens * dxr;
 		pi.pres = (1.1 + pi.abundances[0] - pi.abundances[5]) * NUMDENS_CGS * T * PARAM::KBOLTZ_CGS / PARAM::SPres;
 
@@ -1051,8 +881,22 @@ int main() {
 		ps.push_back(pi);
 
 	}
-#endif
+	char str[80];
+	float f;
+	FILE * pFile;
+	pFile = fopen("result/10000.dat", "r");
 
+	for (int i = 0; i < nparts; i++) {
+		Particle pi;
+
+		fscanf(pFile, "%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf", &pi.pos.x, &pi.dens, &pi.eng,
+				&pi.pres, &pi.acc.x, &pi.eng_dot, &pi.vel.x * PARAM::SVel / 1e5, &pi.smth, &pi.mu,&pi.temp, &pi.NUMDENS, &pi.abundances[0],
+				&pi.abundances[5]);
+
+		pi.TYPE = TYPE_FLUID;
+		ps.push_back(pi);
+
+	}
 	Domain domain;
 	domain.min.x = xmin;
 	domain.max.x = xmax;
@@ -1077,7 +921,7 @@ int main() {
 		FILE* fp;
 		fp = fopen(filename, "w");
 		passtime += glb_dt;
-		cout << "in main time passed:  " << passtime*PARAM::ST/PARAM::yr << " step: " << step << endl;
+		cout << "in main time passed:  " << passtime * PARAM::ST / PARAM::yr << " step: " << step << endl;
 
 //		nparts = ps.size();
 //		InitialKick(ps, glb_dt, nparts);
@@ -1098,8 +942,9 @@ int main() {
 		copyGhosts(domain, ps, nparts);
 		nparts = ps.size();
 		for (int i = 0; i < nparts; i++) {
-			fprintf(fp, "%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\n", ps[i].pos.x * PARAM::SL / PARAM::PC_CGS, ps[i].dens, ps[i].eng, ps[i].pres, ps[i].acc.x,
-					ps[i].eng_dot, ps[i].vel.x * PARAM::SVel / 1e5, ps[i].smth, ps[i].mu, log10(ps[i].temp),log10(ps[i].NUMDENS),log10(ps[i].abundances[0]),log10(ps[i].abundances[5]));
+			fprintf(fp, "%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\n", ps[i].pos.x * PARAM::SL / PARAM::PC_CGS, ps[i].dens, ps[i].eng, ps[i].pres,
+					ps[i].acc.x, ps[i].eng_dot, ps[i].vel.x * PARAM::SVel / 1e5, ps[i].smth, ps[i].mu, log10(ps[i].temp), log10(ps[i].NUMDENS), log10(ps[i].abundances[0]),
+					log10(ps[i].abundances[5]));
 		}
 	}
 
